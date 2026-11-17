@@ -9,6 +9,7 @@ import ReportModal from './components/ReportModal';
 import AiLimitationsModal from './components/AiLimitationsModal';
 import IngestionPanel from './components/IngestionPanel';
 import TerminalConsole from './components/TerminalConsole';
+import OffensiveTerminal from './components/OffensiveTerminal';
 import KibanaDiscover from './components/KibanaDiscover';
 import DetectionStudio from './components/DetectionStudio';
 import HitlGatingPanel from './components/HitlGatingPanel';
@@ -629,16 +630,9 @@ export default function App() {
                 </div>
               )}
 
-              {/* ══ 6. ATTACK SIMULATION TERMINAL ══ */}
+              {/* ══ 6. ATTACK SIMULATION TERMINAL (Offensive Arsenal from Noor-Hassan-B/hackathone) ══ */}
               {activeTab === 'terminal' && (
-                <div className="space-y-6">
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
-                    <TerminalConsole onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
-                  </div>
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
-                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
-                  </div>
-                </div>
+                <OffensiveTerminal onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
               )}
 
               {/* ══ 7. TIMELINE STREAM ══ */}

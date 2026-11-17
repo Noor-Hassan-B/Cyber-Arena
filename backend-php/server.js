@@ -44,6 +44,61 @@ const DB = {
       impact: 'Mass cloud billing fraud ($45k/day GPU compute), potential infrastructure takeover',
       description: 'Compromised developer access key leading to privilege escalation, defense evasion by tampering with CloudTrail, and spinning up high-cost GPU instances for Monero mining.',
       total_events: 5
+    },
+    {
+      id: 4,
+      scenario_id: 'SCN-BRUTE-FORCE',
+      name: 'Hydra Low-and-Slow SSH Password Spraying',
+      threat_actor: 'External Adversary (IP: 185.220.101.44)',
+      target_environment: 'auth-target-vm (10.42.0.12)',
+      attack_vector: 'Throttled SSH spray with rockyou.txt (90s jitter)',
+      impact: 'Credential compromise, privilege escalation, persistent access',
+      description: 'Authentication failures distributed across a long window to evade naive rate-limiting thresholds, rotating across IP pools.',
+      total_events: 14
+    },
+    {
+      id: 5,
+      scenario_id: 'SCN-CRED-STUFFING',
+      name: 'Distributed Credential Stuffing (19 Proxies)',
+      threat_actor: 'Botnet Cluster (RO/DE/US)',
+      target_environment: 'identity-target-vm (10.42.0.15)',
+      attack_vector: 'Residential proxy cluster rotating against OAuth gateway',
+      impact: 'Mass account takeover and token minting',
+      description: 'Coordinated source cluster authenticating against multiple corporate accounts with reused password dumps.',
+      total_events: 19
+    },
+    {
+      id: 6,
+      scenario_id: 'SCN-PORT-SCAN',
+      name: 'Nmap SYN Stealth Enclave Reconnaissance',
+      threat_actor: 'Recon Node (91.121.44.77)',
+      target_environment: 'edge-target-vm (10.42.0.10)',
+      attack_vector: 'TCP SYN port sweep across 65,535 ports',
+      impact: 'Fingerprinting of OS, daemons (SSH, HTTP, Nginx, PostgreSQL)',
+      description: 'Single offensive node fanning out across enclave ports to identify exploitable entry points.',
+      total_events: 12
+    },
+    {
+      id: 7,
+      scenario_id: 'SCN-SQL-INJECTION',
+      name: 'Automated SQLMap Database Extraction',
+      threat_actor: 'SQLMap Agent (194.26.29.112)',
+      target_environment: 'api-target-vm (10.42.0.10)',
+      attack_vector: 'Boolean-based blind & error-based SQL injection',
+      impact: 'Full backend database schema and ledger table extraction',
+      description: 'Automated SQL injection targeting query parameters to bypass auth and exfiltrate database contents.',
+      total_events: 10
+    },
+    {
+      id: 8,
+      scenario_id: 'SCN-GHOST-TX',
+      name: 'Ghost Transactions / Shadow Replay Latency Spike',
+      threat_actor: 'Shadow Replay Engine (203.0.113.9)',
+      target_environment: 'payments-target-vm (10.42.0.22)',
+      attack_vector: 'High-concurrency API replay without auth cookies',
+      impact: 'Severe p99 latency spikes (4,120ms) and payment queue denial of service',
+      description: 'Burst of 240 synthetic transactions causing latency spikes during critical processing windows.',
+      total_events: 15
     }
   ],
 
