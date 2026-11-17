@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Play, 
   Pause, 
@@ -12,17 +12,23 @@ import {
   ChevronRight,
   Info,
   Zap,
-  Crosshair
+  Crosshair,
+  ArrowRight,
+  SlidersHorizontal,
+  Layers,
+  Activity,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function AttackPathGraph({ graphData, onSelectEvent, selectedEventUuid }) {
   const [activeStep, setActiveStep] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hoveredNode, setHoveredNode] = useState(null);
+  const [viewMode, setViewMode] = useState('linear'); // 'linear' (straight line) | 'topology'
 
   if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
     return (
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
+      <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-8 text-center text-gray-400">
         No graph topology data available for this scenario.
       </div>
     );
@@ -41,14 +47,10 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
           }
           return prev + 1;
         });
-      }, 2000);
+      }, 2200);
     }
     return () => clearInterval(interval);
   }, [isPlaying, edges.length]);
-
-  // Position calculation for dynamic responsive layout
-  // Arranges nodes logically from left (Initial Access / Attacker) to right (Target / Cloud Exfil)
-  const nodePositions = calculateNodeLayout(nodes);
 
   const getNodeIcon = (type) => {
     switch (type) {
@@ -67,42 +69,131 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
   const getNodeBadgeClass = (type) => {
     switch (type) {
       case 'c2_server':
-        return 'border-red-500/50 bg-red-950/40 text-red-300';
+        return 'border-red-500/40 bg-red-950/30 text-red-300';
       case 'cloud_resource':
-        return 'border-cyan-500/50 bg-cyan-950/40 text-cyan-300';
+        return 'border-cyan-500/40 bg-cyan-950/30 text-cyan-300';
       case 'server':
-        return 'border-purple-500/50 bg-purple-950/40 text-purple-300';
+        return 'border-purple-500/40 bg-purple-950/30 text-purple-300';
       default:
-        return 'border-blue-500/50 bg-blue-950/40 text-blue-300';
+        return 'border-blue-500/40 bg-blue-950/30 text-blue-300';
     }
   };
 
+  // ── Calculated Clean Linear & Distributed Coordinates ───────────────────────
+  const nodePositions = useMemo(() => {
+    const pos = {};
+    const c2Nodes = nodes.filter(n => n.type === 'c2_server');
+    const endpointNodes = nodes.filter(n => n.type === 'endpoint');
+    const serverNodes = nodes.filter(n => n.type === 'server');
+    const cloudNodes = nodes.filter(n => n.type === 'cloud_resource');
+
+    // 4 Distinct Horizontal Stages with wide separation so cards & labels never overlap
+    // Stage 1 (Attacker / C2): X: 110
+    // Stage 2 (Patient-Zero Endpoint): X: 370
+    // Stage 3 (Lateral Pivot / Server): X: 650
+    // Stage 4 (Exfiltration Target / Cloud): X: 930
+    c2Nodes.forEach((n, idx) => {
+      pos[n.id] = { x: 120, y: 150 + idx * 160 };
+    });
+
+    endpointNodes.forEach((n, idx) => {
+      pos[n.id] = { x: 380, y: 140 + idx * 150 };
+    });
+
+    serverNodes.forEach((n, idx) => {
+      pos[n.id] = { x: 660, y: 150 + idx * 160 };
+    });
+
+    cloudNodes.forEach((n, idx) => {
+      pos[n.id] = { x: 940, y: 140 + idx * 150 };
+    });
+
+    nodes.forEach((n, idx) => {
+      if (!pos[n.id]) {
+        pos[n.id] = {
+          x: 200 + (idx * 220) % 800,
+          y: 100 + (idx * 120) % 320
+        };
+      }
+    });
+
+    return pos;
+  }, [nodes]);
+
+  // Group edges by connection pair to apply smart vertical staggering to badges
+  const edgePairCount = useMemo(() => {
+    const pairMap = {};
+    edges.forEach((edge) => {
+      const pairKey = [edge.source, edge.target].sort().join(':::');
+      pairMap[pairKey] = (pairMap[pairKey] || 0) + 1;
+    });
+    return pairMap;
+  }, [edges]);
+
+  // Track index within pair for vertical staggering
+  const edgePairIndexMap = useMemo(() => {
+    const counts = {};
+    const indexMap = {};
+    edges.forEach((edge) => {
+      const pairKey = [edge.source, edge.target].sort().join(':::');
+      indexMap[edge.id] = counts[pairKey] || 0;
+      counts[pairKey] = (counts[pairKey] || 0) + 1;
+    });
+    return indexMap;
+  }, [edges]);
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl space-y-4">
-      {/* Top Graph Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+    <div className="space-y-4">
+      {/* ── Top Controls & Stats Bar ────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1f293d]">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-sm font-bold text-gray-200 flex items-center gap-1.5 font-mono">
               <Crosshair className="w-4 h-4 text-blue-400" />
-              Interactive Attack Path & Lateral Movement Topology
+              Attack Path Topology & Lateral Movement Sequence
             </h2>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-950/80 border border-blue-500/30 text-blue-300">
-              {nodes.length} Nodes &bull; {edges.length} Traversals
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-950/60 border border-blue-500/30 text-blue-300">
+              {nodes.length} Stage Nodes &bull; {edges.length} Traversals
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              Full-Width Linear Flow
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Click any edge or node to inspect evidence, or run animated attack reconstruction.
+          <p className="text-xs text-gray-400 mt-0.5">
+            Stages arranged in a straight progression: <strong className="text-red-400">Initial Access</strong> &rarr; <strong className="text-blue-400">Endpoint Weaponization</strong> &rarr; <strong className="text-purple-400">Internal Pivot</strong> &rarr; <strong className="text-cyan-400">Cloud Exfiltration</strong>
           </p>
         </div>
 
-        {/* Playback Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        {/* View Toggle & Playback Controls */}
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <div className="flex items-center bg-[#0b0f17] border border-[#1f293d] rounded-lg p-0.5 text-xs font-mono">
+            <button
+              onClick={() => setViewMode('linear')}
+              className={`px-2.5 py-1 rounded-md transition ${
+                viewMode === 'linear'
+                  ? 'bg-blue-600 text-white font-bold shadow'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Straight Line
+            </button>
+            <button
+              onClick={() => setViewMode('topology')}
+              className={`px-2.5 py-1 rounded-md transition ${
+                viewMode === 'topology'
+                  ? 'bg-blue-600 text-white font-bold shadow'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Topology Mesh
+            </button>
+          </div>
+
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold font-mono rounded-lg transition-all ${
               isPlaying
-                ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30'
                 : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30'
             }`}
           >
@@ -122,7 +213,7 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
               setIsPlaying(false);
               setActiveStep(null);
             }}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            className="p-1.5 rounded-lg bg-[#0b0f17] hover:bg-gray-800 border border-[#1f293d] text-gray-300 transition"
             title="Reset Sequence"
           >
             <RotateCcw className="w-4 h-4" />
@@ -130,86 +221,229 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
         </div>
       </div>
 
-      {/* SVG Canvas Graph Visualization */}
-      <div className="relative w-full h-[380px] bg-[#080D1A] border border-slate-800/80 rounded-xl overflow-hidden select-none">
-        
-        {/* Background Grid Pattern */}
-        <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-          <defs>
-            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#3B82F6" strokeWidth="0.5" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
+      {/* ── Mode 1: Clean Straight Line Stepper View (Straight Progression) ─── */}
+      {viewMode === 'linear' && (
+        <div className="bg-[#0b0f17] border border-[#1f293d] rounded-xl p-5 space-y-5">
+          <div className="flex items-center justify-between text-xs font-mono text-gray-400 border-b border-[#1f293d] pb-2">
+            <span className="font-bold text-gray-300 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-blue-400" />
+              Kill Chain Stage Progression (Straight Line)
+            </span>
+            <span className="text-[11px] text-gray-500">
+              {activeStep !== null ? `Active Step ${activeStep + 1} of ${edges.length}` : 'Click any stage to inspect evidence'}
+            </span>
+          </div>
 
-        {/* Directed SVG Edges */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          <defs>
-            <marker
-              id="arrowhead-default"
-              markerWidth="8"
-              markerHeight="8"
-              refX="18"
-              refY="4"
-              orient="auto"
-            >
-              <polygon points="0 0, 8 4, 0 8" fill="#475569" />
-            </marker>
-            <marker
-              id="arrowhead-active"
-              markerWidth="10"
-              markerHeight="10"
-              refX="18"
-              refY="5"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 5, 0 10" fill="#EF4444" />
-            </marker>
-            <marker
-              id="arrowhead-selected"
-              markerWidth="10"
-              markerHeight="10"
-              refX="18"
-              refY="5"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 5, 0 10" fill="#3B82F6" />
-            </marker>
-          </defs>
+          {/* Row 1: Primary Stages in a Straight Line */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
+            {[
+              {
+                stage: 'Stage 1',
+                title: 'External C2 Server',
+                sub: 'Initial Access & Staging',
+                type: 'c2_server',
+                nodes: nodes.filter(n => n.type === 'c2_server'),
+                badge: 'border-red-500/40 bg-red-950/20 text-red-300',
+                edgeLabel: 'T1071.001 Web Protocol'
+              },
+              {
+                stage: 'Stage 2',
+                title: 'Compromised Endpoint',
+                sub: 'Weaponization & Defense Evasion',
+                type: 'endpoint',
+                nodes: nodes.filter(n => n.type === 'endpoint'),
+                badge: 'border-blue-500/40 bg-blue-950/20 text-blue-300',
+                edgeLabel: 'T1059.001 PowerShell'
+              },
+              {
+                stage: 'Stage 3',
+                title: 'Domain Infrastructure',
+                sub: 'Lateral Movement & Pivot',
+                type: 'server',
+                nodes: nodes.filter(n => n.type === 'server'),
+                badge: 'border-purple-500/40 bg-purple-950/20 text-purple-300',
+                edgeLabel: 'T1021.002 SMB Exec'
+              },
+              {
+                stage: 'Stage 4',
+                title: 'Cloud Target Enclave',
+                sub: 'S3 Data Exfiltration',
+                type: 'cloud_resource',
+                nodes: nodes.filter(n => n.type === 'cloud_resource'),
+                badge: 'border-cyan-500/40 bg-cyan-950/20 text-cyan-300',
+                edgeLabel: 'T1530 S3 Exfil'
+              }
+            ].map((col, cIdx) => (
+              <div key={col.stage} className="space-y-3 relative">
+                {/* Connecting Arrow between columns (straight line flow) */}
+                {cIdx < 3 && (
+                  <div className="hidden md:flex absolute -right-3 top-14 z-20 items-center justify-center w-6 h-6 rounded-full bg-[#111827] border border-blue-500/40 text-blue-400">
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
+                )}
 
-          {edges.map((edge, idx) => {
-            const p1 = nodePositions[edge.source];
-            const p2 = nodePositions[edge.target];
-            if (!p1 || !p2) return null;
+                {/* Stage Header Pill */}
+                <div className="flex items-center justify-between px-2">
+                  <span className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest">
+                    {col.stage}
+                  </span>
+                  <span className="text-[10px] font-mono text-gray-400">
+                    {col.sub}
+                  </span>
+                </div>
 
-            const isStepActive = activeStep === idx;
-            const isSelected = selectedEventUuid === edge.event_uuid;
+                {/* Node Cards in this stage */}
+                <div className="space-y-2">
+                  {col.nodes.map(node => {
+                    const isHovered = hoveredNode === node.id;
+                    const isNodeActive = activeStep !== null && (
+                      edges[activeStep]?.source === node.id || edges[activeStep]?.target === node.id
+                    );
 
-            // Curved bezier path
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const cx1 = p1.x + dx * 0.5;
-            const cy1 = p1.y - 20;
+                    return (
+                      <div
+                        key={node.id}
+                        onMouseEnter={() => setHoveredNode(node.id)}
+                        onMouseLeave={() => setHoveredNode(null)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                          getNodeBadgeClass(node.type)
+                        } ${
+                          isNodeActive ? 'ring-2 ring-red-400 shadow-lg shadow-red-500/20' : ''
+                        } ${
+                          isHovered ? 'scale-[1.02] border-blue-400 shadow-md' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <div className="p-2 rounded-lg bg-[#0b0f17] border border-[#1f293d] shrink-0">
+                            {getNodeIcon(node.type)}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-white block truncate">
+                              {node.label}
+                            </span>
+                            <span className="text-[9px] font-mono uppercase text-gray-400">
+                              {node.type.replace('_', ' ')}
+                            </span>
+                          </div>
+                        </div>
 
-            let strokeColor = '#334155';
-            let strokeWidth = 2;
-            let marker = 'url(#arrowhead-default)';
+                        {node.users && node.users.length > 0 && (
+                          <div className="text-[10px] font-mono text-amber-300 bg-[#0b0f17]/70 px-2 py-1 rounded border border-[#1f293d] truncate">
+                            Account: {node.users[0]}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
 
-            if (isSelected) {
-              strokeColor = '#3B82F6';
-              strokeWidth = 3.5;
-              marker = 'url(#arrowhead-selected)';
-            } else if (isStepActive) {
-              strokeColor = '#EF4444';
-              strokeWidth = 4;
-              marker = 'url(#arrowhead-active)';
-            }
+          {/* Row 2: Sequential Attack Traversals (Clean Horizontal Bridge) */}
+          <div className="pt-4 border-t border-[#1f293d]">
+            <div className="flex items-center justify-between text-xs font-mono text-gray-400 mb-2">
+              <span className="font-bold text-gray-300">Observed Lateral Traversals in Chronological Order</span>
+              <span className="text-[10px] text-gray-500">Click any step to inspect correlated forensic evidence</span>
+            </div>
 
-            return (
-              <g key={edge.id}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {edges.map((edge, idx) => {
+                const isStepActive = activeStep === idx;
+                const isSelected = selectedEventUuid === edge.event_uuid;
+
+                return (
+                  <button
+                    key={edge.id}
+                    onClick={() => {
+                      setActiveStep(idx);
+                      onSelectEvent(edge.event_uuid);
+                    }}
+                    className={`p-2.5 rounded-lg border text-left transition font-mono ${
+                      isStepActive || isSelected
+                        ? 'bg-blue-600 text-white border-blue-400 shadow-md font-bold'
+                        : 'bg-[#111827] border-[#1f293d] text-gray-300 hover:border-gray-600 hover:bg-[#151e30]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                      <span className="text-gray-300">Step {idx + 1}</span>
+                      <span className={`px-1 py-0.2 rounded text-[9px] ${
+                        isStepActive ? 'bg-red-500 text-white' : 'bg-gray-800 text-gray-400'
+                      }`}>
+                        {edge.technique_id}
+                      </span>
+                    </div>
+                    <div className="text-xs truncate font-bold text-white">
+                      {edge.label}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mode 2: Full-Width Dynamic SVG Canvas (Cleanly Spaced) ─────────── */}
+      {viewMode === 'topology' && (
+        <div className="relative w-full h-[460px] bg-[#080D1A] border border-[#1f293d] rounded-xl overflow-hidden select-none shadow-inner">
+          
+          {/* Subtle Grid Pattern */}
+          <svg className="absolute inset-0 w-full h-full opacity-15 pointer-events-none">
+            <defs>
+              <pattern id="clean-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#3B82F6" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#clean-grid)" />
+          </svg>
+
+          {/* Directed SVG Edges with Smooth Bézier Curves */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            <defs>
+              <marker id="arr-default" markerWidth="8" markerHeight="8" refX="16" refY="4" orient="auto">
+                <polygon points="0 0, 8 4, 0 8" fill="#475569" />
+              </marker>
+              <marker id="arr-active" markerWidth="10" markerHeight="10" refX="16" refY="5" orient="auto">
+                <polygon points="0 0, 10 5, 0 10" fill="#EF4444" />
+              </marker>
+              <marker id="arr-selected" markerWidth="10" markerHeight="10" refX="16" refY="5" orient="auto">
+                <polygon points="0 0, 10 5, 0 10" fill="#3B82F6" />
+              </marker>
+            </defs>
+
+            {edges.map((edge, idx) => {
+              const p1 = nodePositions[edge.source];
+              const p2 = nodePositions[edge.target];
+              if (!p1 || !p2) return null;
+
+              const isSelected = selectedEventUuid === edge.event_uuid;
+              const isStepActive = activeStep === idx;
+
+              // Curve offsets to ensure parallel edges do not overlap
+              const pairIdx = edgePairIndexMap[edge.id] || 0;
+              const curveOffset = pairIdx === 0 ? 0 : pairIdx % 2 === 1 ? pairIdx * 25 : -pairIdx * 25;
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2 + curveOffset;
+
+              let strokeColor = '#334155';
+              let strokeWidth = 2;
+              let marker = 'url(#arr-default)';
+
+              if (isSelected) {
+                strokeColor = '#3B82F6';
+                strokeWidth = 3.5;
+                marker = 'url(#arr-selected)';
+              } else if (isStepActive) {
+                strokeColor = '#EF4444';
+                strokeWidth = 4;
+                marker = 'url(#arr-active)';
+              }
+
+              return (
                 <path
-                  d={`M ${p1.x} ${p1.y} Q ${cx1} ${cy1} ${p2.x} ${p2.y}`}
+                  key={edge.id}
+                  d={`M ${p1.x} ${p1.y} Q ${midX} ${midY} ${p2.x} ${p2.y}`}
                   fill="none"
                   stroke={strokeColor}
                   strokeWidth={strokeWidth}
@@ -217,109 +451,111 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
                   markerEnd={marker}
                   className="transition-all duration-300"
                 />
-              </g>
+              );
+            })}
+          </svg>
+
+          {/* Interactive Clickable Nodes */}
+          {nodes.map((node) => {
+            const pos = nodePositions[node.id];
+            if (!pos) return null;
+
+            const isHovered = hoveredNode === node.id;
+            const isNodeInActiveStep = activeStep !== null && (
+              edges[activeStep]?.source === node.id || edges[activeStep]?.target === node.id
             );
-          })}
-        </svg>
 
-        {/* Interactive Clickable Nodes */}
-        {nodes.map((node) => {
-          const pos = nodePositions[node.id];
-          if (!pos) return null;
-
-          const isHovered = hoveredNode === node.id;
-          const isNodeInActiveStep = activeStep !== null && (
-            edges[activeStep]?.source === node.id || edges[activeStep]?.target === node.id
-          );
-
-          return (
-            <div
-              key={node.id}
-              style={{
-                left: `${pos.x}px`,
-                top: `${pos.y}px`,
-                transform: 'translate(-50%, -50%)'
-              }}
-              onMouseEnter={() => setHoveredNode(node.id)}
-              onMouseLeave={() => setHoveredNode(null)}
-              className={`absolute cursor-pointer transition-all duration-300 z-10 ${
-                isNodeInActiveStep ? 'scale-110' : ''
-              }`}
-            >
+            return (
               <div
-                className={`flex flex-col items-center p-2.5 rounded-xl border backdrop-blur-md shadow-lg ${
-                  getNodeBadgeClass(node.type)
-                } ${
-                  isNodeInActiveStep ? 'ring-2 ring-red-400 glow-red' : ''
-                } ${
-                  isHovered ? 'scale-105 border-slate-400 shadow-blue-500/20' : ''
+                key={node.id}
+                style={{
+                  left: `${pos.x}px`,
+                  top: `${pos.y}px`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                onMouseEnter={() => setHoveredNode(node.id)}
+                onMouseLeave={() => setHoveredNode(null)}
+                className={`absolute cursor-pointer transition-all duration-300 z-10 ${
+                  isNodeInActiveStep ? 'scale-110' : ''
                 }`}
               >
-                <div className="p-2 rounded-lg bg-slate-900/80 mb-1">
-                  {getNodeIcon(node.type)}
-                </div>
-                <span className="text-[11px] font-bold text-slate-200 tracking-tight text-center max-w-[130px] truncate">
-                  {node.label}
-                </span>
-                <span className="text-[9px] font-mono text-slate-400 uppercase mt-0.5">
-                  {node.type.replace('_', ' ')}
-                </span>
-                {node.users && node.users.length > 0 && (
-                  <span className="text-[9px] font-mono text-amber-300/90 truncate max-w-[120px]">
-                    User: {node.users[0]}
+                <div
+                  className={`flex flex-col items-center p-3 rounded-xl border backdrop-blur-md shadow-xl ${
+                    getNodeBadgeClass(node.type)
+                  } ${
+                    isNodeInActiveStep ? 'ring-2 ring-red-400 shadow-red-500/30' : ''
+                  } ${
+                    isHovered ? 'scale-105 border-blue-400 shadow-blue-500/20' : ''
+                  }`}
+                >
+                  <div className="p-2 rounded-lg bg-[#0b0f17] mb-1">
+                    {getNodeIcon(node.type)}
+                  </div>
+                  <span className="text-[11px] font-bold text-gray-100 tracking-tight text-center max-w-[130px] truncate">
+                    {node.label}
                   </span>
-                )}
+                  <span className="text-[9px] font-mono text-gray-400 uppercase mt-0.5">
+                    {node.type.replace('_', ' ')}
+                  </span>
+                  {node.users && node.users.length > 0 && (
+                    <span className="text-[9px] font-mono text-amber-300 truncate max-w-[120px] mt-0.5">
+                      {node.users[0]}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        {/* Edge Action Badges (Clickable to trigger evidence) */}
-        {edges.map((edge, idx) => {
-          const p1 = nodePositions[edge.source];
-          const p2 = nodePositions[edge.target];
-          if (!p1 || !p2) return null;
+          {/* Non-Overlapping Staggered Traversal Badges */}
+          {edges.map((edge, idx) => {
+            const p1 = nodePositions[edge.source];
+            const p2 = nodePositions[edge.target];
+            if (!p1 || !p2) return null;
 
-          const midX = (p1.x + p2.x) / 2;
-          const midY = (p1.y + p2.y) / 2 - 14;
-          const isSelected = selectedEventUuid === edge.event_uuid;
-          const isStepActive = activeStep === idx;
+            const pairIdx = edgePairIndexMap[edge.id] || 0;
+            const verticalStagger = pairIdx === 0 ? -18 : pairIdx % 2 === 1 ? -18 - (pairIdx * 20) : -18 + (pairIdx * 20);
+            const midX = (p1.x + p2.x) / 2;
+            const midY = (p1.y + p2.y) / 2 + verticalStagger;
 
-          return (
-            <div
-              key={`badge-${edge.id}`}
-              style={{
-                left: `${midX}px`,
-                top: `${midY}px`,
-                transform: 'translate(-50%, -50%)'
-              }}
-              onClick={() => onSelectEvent(edge.event_uuid)}
-              className={`absolute z-20 cursor-pointer px-2 py-1 rounded text-[10px] font-mono border shadow-md transition-all ${
-                isSelected
-                  ? 'bg-blue-600 text-white border-blue-400 font-bold glow-blue scale-105'
-                  : isStepActive
-                  ? 'bg-red-600 text-white border-red-400 font-bold glow-red scale-110'
-                  : 'bg-slate-950/90 text-slate-300 border-slate-700/80 hover:border-slate-500 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-1">
-                <span>{edge.technique_id}</span>
-                <span className="hidden sm:inline font-sans text-[9px] text-slate-400">
-                  {edge.label}
-                </span>
+            const isSelected = selectedEventUuid === edge.event_uuid;
+            const isStepActive = activeStep === idx;
+
+            return (
+              <div
+                key={`badge-${edge.id}`}
+                style={{
+                  left: `${midX}px`,
+                  top: `${midY}px`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                onClick={() => onSelectEvent(edge.event_uuid)}
+                className={`absolute z-20 cursor-pointer px-2 py-0.5 rounded text-[10px] font-mono border shadow-md transition-all ${
+                  isSelected
+                    ? 'bg-blue-600 text-white border-blue-400 font-bold scale-105 shadow-blue-500/40'
+                    : isStepActive
+                    ? 'bg-red-600 text-white border-red-400 font-bold scale-110 shadow-red-500/40'
+                    : 'bg-[#0b0f17]/95 text-gray-300 border-[#1f293d] hover:border-blue-400 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="font-bold">{edge.technique_id}</span>
+                  <span className="hidden sm:inline text-[9px] text-gray-400 truncate max-w-[100px]">
+                    {edge.label}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      )}
 
-      </div>
-
-      {/* Attack Sequence Step Breadcrumbs */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <span className="font-semibold text-slate-300">Attack Path Execution Sequence</span>
-          <span className="font-mono text-[11px]">
-            {activeStep !== null ? `Stage ${activeStep + 1} of ${edges.length}` : 'All steps shown'}
+      {/* ── Sequence Step Pills ────────────────────────────────────────────── */}
+      <div className="space-y-1.5 pt-2">
+        <div className="flex items-center justify-between text-xs text-gray-400 font-mono">
+          <span className="font-semibold text-gray-300">Fast Stepper (Step-by-Step Traversal)</span>
+          <span className="text-[11px] text-gray-500">
+            {activeStep !== null ? `Traversal ${activeStep + 1} of ${edges.length}` : 'All traversals armed'}
           </span>
         </div>
 
@@ -335,82 +571,21 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
                   setActiveStep(idx);
                   onSelectEvent(edge.event_uuid);
                 }}
-                className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-xs font-mono border transition-all ${
+                className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono border transition-all ${
                   isStepActive || isSelected
-                    ? 'bg-blue-600 text-white border-blue-400 font-bold'
-                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+                    ? 'bg-blue-600 text-white border-blue-400 font-bold shadow'
+                    : 'bg-[#111827] text-gray-300 border-[#1f293d] hover:bg-gray-800'
                 }`}
               >
-                <span className="w-4 h-4 rounded-full bg-slate-950/60 text-[10px] flex items-center justify-center font-bold">
+                <span className="w-4 h-4 rounded-full bg-[#0b0f17] text-[10px] flex items-center justify-center font-bold">
                   {idx + 1}
                 </span>
-                <span className="truncate max-w-[100px]">{edge.technique_id}</span>
+                <span className="truncate max-w-[120px]">{edge.technique_id}</span>
               </button>
             );
           })}
         </div>
       </div>
-
     </div>
   );
-}
-
-// Layout coordinate generator for node positions
-function calculateNodeLayout(nodes) {
-  const positions = {};
-  const total = nodes.length;
-  const width = 860;
-  const height = 360;
-
-  // Categorize
-  const c2Nodes = nodes.filter(n => n.type === 'c2_server');
-  const endpointNodes = nodes.filter(n => n.type === 'endpoint');
-  const serverNodes = nodes.filter(n => n.type === 'server');
-  const cloudNodes = nodes.filter(n => n.type === 'cloud_resource');
-
-  // Multi-tier column distribution
-  // Column 1: Attacker / C2 (X: 120)
-  // Column 2: Initial Endpoint (X: 320)
-  // Column 3: Servers / Pivot (X: 540)
-  // Column 4: Cloud / Exfil Targets (X: 740)
-
-  c2Nodes.forEach((n, idx) => {
-    positions[n.id] = {
-      x: 120,
-      y: 110 + idx * 140
-    };
-  });
-
-  endpointNodes.forEach((n, idx) => {
-    positions[n.id] = {
-      x: 320,
-      y: 100 + idx * 130
-    };
-  });
-
-  serverNodes.forEach((n, idx) => {
-    positions[n.id] = {
-      x: 530,
-      y: 110 + idx * 140
-    };
-  });
-
-  cloudNodes.forEach((n, idx) => {
-    positions[n.id] = {
-      x: 740,
-      y: 110 + idx * 130
-    };
-  });
-
-  // Fallback for any unmapped
-  nodes.forEach((n, idx) => {
-    if (!positions[n.id]) {
-      positions[n.id] = {
-        x: 150 + (idx * 160) % 700,
-        y: 80 + (idx * 70) % 250
-      };
-    }
-  });
-
-  return positions;
 }

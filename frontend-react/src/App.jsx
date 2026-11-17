@@ -538,18 +538,14 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* Dual Grid: Attack Path & Overview Stats */}
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <GitCommit className="w-4 h-4 text-indigo-400" />
-                        <h2 className="text-sm font-semibold text-gray-200">Attack Path Topology</h2>
-                      </div>
-                      <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
-                    </div>
-                    <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
-                      <OverviewStats correlationData={correlationData} scenario={activeScenario} events={events} />
-                    </div>
+                  {/* Row 1: Attack Path Topology (Full Width in a Straight Line) */}
+                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5 shadow-xl">
+                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
+                  </div>
+
+                  {/* Row 2: Incident Overview & Correlation Stats (Directly Below, Full Width in a Straight Line) */}
+                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5 shadow-xl">
+                    <OverviewStats correlationData={correlationData} scenario={activeScenario} events={events} />
                   </div>
 
                   {/* Telemetry Log Stream */}
