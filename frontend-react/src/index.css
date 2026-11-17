@@ -3,37 +3,53 @@
 @tailwind utilities;
 
 @layer base {
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
-    background-color: #0B0F19;
-    color: #F3F4F6;
+    background-color: #0b0f17;
+    color: #F1F5F9;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   }
 }
 
-/* Custom scrollbars */
+/* Custom scrollbars — SOCForge tactical dark */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0F172A;
+  background: #0b0f17;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #1f293d;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #334155;
 }
 
 /* Glow effects */
 .glow-blue {
   box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.3);
 }
-
 .glow-red {
   box-shadow: 0 0 25px -5px rgba(239, 68, 68, 0.4);
 }
-
 .glow-purple {
   box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.3);
+}
+
+/* SOCForge accent glow */
+.glow-threat {
+  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.3);
+}
+.glow-success {
+  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
+}
+
+/* Smooth sidebar transition */
+aside {
+  transition: width 0.3s ease;
 }
