@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aegishunt-config
+  namespace: threat-hunting
+  labels:
+    app.kubernetes.io/name: aegishunt
+data:
+  DB_HOST: "mysql-service"
+  DB_PORT: "3306"
+  DB_NAME: "threat_hunter"
+  APP_ENV: "production"
+  LOG_LEVEL: "info"

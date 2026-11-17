@@ -1,0 +1,80 @@
+# =========================================================================
+# AegisHunt Cyber Threat Hunting Platform - Full Stack Docker Compose
+# Architecture: React 18 Frontend + PHP 8.2 API + MySQL 8.0 Telemetry DB
+# =========================================================================
+
+version: '3.8'
+
+services:
+  # 1. Database Layer: MySQL 8.0 Telemetry Store
+  mysql:
+    image: mysql:8.0
+    container_name: aegishunt-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_threat_pass}
+      MYSQL_DATABASE: ${DB_NAME:-threat_hunter}
+      MYSQL_USER: ${DB_USER:-threat_user}
+      MYSQL_PASSWORD: ${DB_PASS:-threat_pass}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Auto-executes SQL initialization scripts in lexicographical order
+      - ./backend-php/sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./backend-php/sql/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_threat_pass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - threat-network
+
+  # 2. API & Correlation Layer: PHP 8.2 REST API
+  backend:
+    build:
+      context: ./backend-php
+      dockerfile: Dockerfile
+    container_name: aegishunt-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-threat_hunter}
+      DB_USER: ${DB_USER:-threat_user}
+      DB_PASS: ${DB_PASS:-threat_pass}
+    ports:
+      - "${BACKEND_PORT:-8000}:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - threat-network
+
+  # 3. Presentation Layer: React 18 + Nginx Reverse Proxy
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    container_name: aegishunt-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - threat-network
+
+# Networks
+networks:
+  threat-network:
+    driver: bridge
+    name: aegishunt-network
+
+# Persistent Volumes
+volumes:
+  mysql_data:
+    driver: local
+    name: aegishunt_mysql_data
