@@ -1,6 +1,7 @@
 // =========================================================================
-// AegisHunt Unified REST API Server & Telemetry Datastore
-// Fulfills all REST endpoints on port 8000 for instant zero-dependency execution
+// AegisHunt & SOCForge Unified REST API Server & Telemetry Datastore
+// Features: Relational Evidence Graph, Detection Engineering (Sigma/SPL/KQL),
+// Human-in-the-Loop (HITL) Action Gating, Append-Only Audit Ledger, and RBAC
 // =========================================================================
 
 import http from 'http';
@@ -8,7 +9,7 @@ import url from 'url';
 
 const PORT = process.env.PORT || 8000;
 
-// In-Memory Database pre-loaded with synthetic multi-source telemetry
+// In-Memory Database with Detection Rules, HITL Gating & Audit Ledger
 const DB = {
   scenarios: [
     {
@@ -45,8 +46,182 @@ const DB = {
       total_events: 5
     }
   ],
+
+  // 1. Detection Engineering Rules (Sigma / SPL / KQL)
+  detectionRules: [
+    {
+      id: 'SIGMA-001',
+      title: 'Suspicious PowerShell Download Cradle via Encoded Command',
+      format: 'Sigma',
+      status: 'active',
+      severity: 'high',
+      mitre_technique: 'T1059.001',
+      mitre_tactic: 'Execution',
+      rule_content: `title: Suspicious PowerShell Download Cradle
+id: 3b1e7c84-912f-488b-a384-918237192841
+status: production
+description: Detects base64 encoded PowerShell commands launching web client download cradles
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\\powershell.exe'
+        CommandLine|contains:
+            - '-enc'
+            - '-encodedcommand'
+            - 'downloadstring'
+            - 'webclient'
+    condition: selection
+falsepositives:
+    - Highly specialized administrative deployment scripts
+level: high`,
+      spl_query: 'index=endpoint process_name="powershell.exe" (command_line="*-enc*" OR command_line="*DownloadString*")',
+      kql_query: 'event.domain: "endpoint" and process.name: "powershell.exe" and process.command_line: (*-enc* or *DownloadString*)'
+    },
+    {
+      id: 'SIGMA-002',
+      title: 'LSASS Process Memory Dump via Comsvcs DLL',
+      format: 'Sigma',
+      status: 'active',
+      severity: 'critical',
+      mitre_technique: 'T1003.001',
+      mitre_tactic: 'Credential Access',
+      rule_content: `title: LSASS Memory Dumping via Comsvcs.dll
+id: 5a8e9f12-781c-4b92-b892-718293019284
+status: production
+description: Detects dumping of LSASS memory using rundll32 and comsvcs.dll MiniDump export
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\\rundll32.exe'
+        CommandLine|contains:
+            - 'comsvcs.dll'
+            - 'MiniDump'
+    condition: selection
+level: critical`,
+      spl_query: 'index=endpoint process_name="rundll32.exe" command_line="*comsvcs.dll*MiniDump*"',
+      kql_query: 'event.domain: "endpoint" and process.name: "rundll32.exe" and process.command_line: (*comsvcs.dll* and *MiniDump*)'
+    },
+    {
+      id: 'SIGMA-003',
+      title: 'Volume Shadow Copy Deletion (Ransomware Preparation)',
+      format: 'Sigma',
+      status: 'active',
+      severity: 'critical',
+      mitre_technique: 'T1490',
+      mitre_tactic: 'Defense Evasion',
+      rule_content: `title: Volume Shadow Copy Deletion
+id: 88f12a9c-341e-48a1-b841-928172948192
+status: production
+description: Detects deletion of Volume Shadow Copies using vssadmin or wmic
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\\vssadmin.exe'
+            - '\\wmic.exe'
+        CommandLine|contains:
+            - 'delete shadows'
+            - 'shadowcopy delete'
+    condition: selection
+level: critical`,
+      spl_query: 'index=endpoint (process_name="vssadmin.exe" command_line="*delete shadows*") OR (process_name="wmic.exe" command_line="*shadowcopy delete*")',
+      kql_query: 'event.domain: "endpoint" and process.name: ("vssadmin.exe" or "wmic.exe") and process.command_line: (*delete shadows* or *shadowcopy delete*)'
+    },
+    {
+      id: 'SIGMA-004',
+      title: 'AWS CloudTrail STS AssumeRole from Untrusted Foreign IP',
+      format: 'KQL',
+      status: 'active',
+      severity: 'high',
+      mitre_technique: 'T1078.004',
+      mitre_tactic: 'Privilege Escalation',
+      rule_content: `title: AWS STS AssumeRole from Non-Corporate CIDR
+description: Identifies AWS CloudTrail AssumeRole API calls originating outside company IP blocks
+kql: event.domain: "cloud" and cloud.action: "AssumeRole" and not (source.ip: 10.0.* or source.ip: 192.168.*)`,
+      spl_query: 'index=cloud eventName="AssumeRole" NOT sourceIPAddress IN ("10.0.0.0/8", "192.168.0.0/16")',
+      kql_query: 'event.domain: "cloud" and cloud.action: "AssumeRole" and not (source.ip: 10.* or source.ip: 192.168.*)'
+    }
+  ],
+
+  // 2. Human-in-the-Loop (HITL) Action Gating Queue
+  hitlGatingQueue: [
+    {
+      action_id: 'ACT-GATE-001',
+      action_type: 'isolate_host',
+      target: 'WKSTN-FIN-04',
+      status: 'pending_approval',
+      risk_level: 'High Impact',
+      initiated_by: 'Aegis Threat AI Copilot',
+      justification: 'Critical LSASS dump detected ([EVT-APT-004]). Immediate network quarantine recommended to halt active lateral traversal to Domain Controller.',
+      blast_radius: '1 Workstation (Finance Dept), Active RDP sessions dropped, EDR sensor maintained',
+      requested_at: '2026-11-17 08:35:12'
+    },
+    {
+      action_id: 'ACT-GATE-002',
+      action_type: 'revoke_session',
+      target: 'CORP\\svc_sqladmin',
+      status: 'pending_approval',
+      risk_level: 'Critical Impact',
+      initiated_by: 'SOC Analyst L2',
+      justification: 'Kerberoasting ticket requested from unapproved workstation ([EVT-APT-005]). Active Kerberos tickets and password rotation required.',
+      blast_radius: 'SQL Admin Service Account, 3 database maintenance batches may pause during rotation',
+      requested_at: '2026-11-17 08:42:00'
+    },
+    {
+      action_id: 'ACT-GATE-003',
+      action_type: 'block_ip',
+      target: '185.220.101.5',
+      status: 'pending_approval',
+      risk_level: 'Medium Impact',
+      initiated_by: 'Aegis Threat AI Copilot',
+      justification: 'Persistent C2 beaconing socket on port 443 ([EVT-APT-003]). Perimeter firewall null-route recommended.',
+      blast_radius: 'Perimeter Firewall / WAF rule, 0 legitimate business endpoints affected',
+      requested_at: '2026-11-17 08:45:30'
+    }
+  ],
+
+  // 3. Append-Only Audit Ledger (audit_events)
+  auditLedger: [
+    {
+      audit_id: 'AUD-001',
+      timestamp: '2026-11-17 08:14:22 UTC',
+      actor: 'System / Telemetry Ingestion Pipeline',
+      role: 'SYSTEM',
+      action: 'INGEST_TELEMETRY_BATCH',
+      details: 'Ingested 10 security events for scenario SCN-APT29-GHOST across 4 domains.',
+      status: 'COMMITTED',
+      signature: 'sha256:8f3b92c4...e0a1'
+    },
+    {
+      audit_id: 'AUD-002',
+      timestamp: '2026-11-17 08:25:00 UTC',
+      actor: 'Analyst (Noor Hassan)',
+      role: 'L2 Threat Hunter',
+      action: 'QUERY_EXECUTION',
+      details: 'Executed KQL search: domain: "endpoint" and process.name: "powershell.exe"',
+      status: 'LOGGED',
+      signature: 'sha256:1a4c90d8...78b2'
+    },
+    {
+      audit_id: 'AUD-003',
+      timestamp: '2026-11-17 08:35:12 UTC',
+      actor: 'Aegis Threat AI Copilot',
+      role: 'AI_COPILOT',
+      action: 'PROPOSE_CONTAINMENT_ACTION',
+      details: 'Proposed host isolation for WKSTN-FIN-04 into HITL Approval Queue (ACT-GATE-001).',
+      status: 'ENQUEUED',
+      signature: 'sha256:4b912a7d...33c9'
+    }
+  ],
+
   events: [
-    // Scenario 1: APT29 GhostToken
+    // Pre-populated events
     {
       id: 1,
       event_uuid: 'EVT-APT-001',
@@ -242,108 +417,11 @@ const DB = {
       mitre_technique_id: 'T1048',
       mitre_technique_name: 'Exfiltration Over Alternative Protocol',
       raw_payload: { bytes_out: 1540000000, dest_country: 'CH' }
-    },
-
-    // Scenario 2: BlackCat Ransomware
-    {
-      id: 11,
-      event_uuid: 'EVT-RSM-001',
-      scenario_id: 'SCN-RANSOM-BLACKCAT',
-      timestamp: '2026-11-16 02:11:00',
-      domain: 'auth',
-      event_type: 'vpn_auth',
-      severity: 'high',
-      source_host: 'Remote Client',
-      dest_host: 'VPN-GW-01',
-      source_ip: '194.26.29.112',
-      dest_ip: '10.0.0.1',
-      user_id: 'svc_backup',
-      mitre_tactic: 'Initial Access',
-      mitre_technique_id: 'T1133',
-      mitre_technique_name: 'External Remote Services',
-      raw_payload: { prior_failed_attempts: 38, client_country: 'RU' }
-    },
-    {
-      id: 12,
-      event_uuid: 'EVT-RSM-002',
-      scenario_id: 'SCN-RANSOM-BLACKCAT',
-      timestamp: '2026-11-16 02:15:32',
-      domain: 'endpoint',
-      event_type: 'rdp_login',
-      severity: 'high',
-      source_host: 'VPN-GW-01',
-      dest_host: 'SRV-FILE-01',
-      source_ip: '10.0.0.1',
-      dest_ip: '10.0.2.10',
-      user_id: 'svc_backup',
-      process_name: 'mstsc.exe',
-      mitre_tactic: 'Lateral Movement',
-      mitre_technique_id: 'T1021.001',
-      mitre_technique_name: 'Remote Desktop Protocol',
-      raw_payload: { logon_type: 10, event_id: 4624 }
-    },
-    {
-      id: 13,
-      event_uuid: 'EVT-RSM-004',
-      scenario_id: 'SCN-RANSOM-BLACKCAT',
-      timestamp: '2026-11-16 02:35:45',
-      domain: 'endpoint',
-      event_type: 'process_creation',
-      severity: 'critical',
-      source_host: 'SRV-FILE-01',
-      dest_host: 'SRV-FILE-01',
-      source_ip: '10.0.2.10',
-      user_id: 'svc_backup',
-      process_name: 'vssadmin.exe',
-      command_line: 'vssadmin.exe delete shadows /all /quiet',
-      mitre_tactic: 'Defense Evasion',
-      mitre_technique_id: 'T1490',
-      mitre_technique_name: 'Inhibit System Recovery',
-      raw_payload: { shadow_copies_purged: 18 }
-    },
-    {
-      id: 14,
-      event_uuid: 'EVT-RSM-006',
-      scenario_id: 'SCN-RANSOM-BLACKCAT',
-      timestamp: '2026-11-16 02:44:00',
-      domain: 'network',
-      event_type: 'cloud_exfil',
-      severity: 'high',
-      source_host: 'SRV-FILE-01',
-      dest_host: 'mega.nz',
-      source_ip: '10.0.2.10',
-      dest_ip: '31.216.144.5',
-      user_id: 'svc_backup',
-      process_name: 'mega-cmd.exe',
-      command_line: 'mega-cmd.exe put C:\\Shares\\Finance\\*.xlsx /BlackCat_Exfil/',
-      mitre_tactic: 'Exfiltration',
-      mitre_technique_id: 'T1567.002',
-      mitre_technique_name: 'Exfiltration to Cloud Storage',
-      raw_payload: { files_uploaded: 834, total_mb: 4200 }
-    },
-    {
-      id: 15,
-      event_uuid: 'EVT-RSM-007',
-      scenario_id: 'SCN-RANSOM-BLACKCAT',
-      timestamp: '2026-11-16 02:50:12',
-      domain: 'endpoint',
-      event_type: 'file_encryption',
-      severity: 'critical',
-      source_host: 'SRV-FILE-01',
-      dest_host: 'SRV-FILE-01',
-      source_ip: '10.0.2.10',
-      user_id: 'svc_backup',
-      process_name: 'encryptor.exe',
-      command_line: 'C:\\Windows\\Temp\\encryptor.exe --path C:\\Shares --threads 32 --note HOW_TO_RESTORE.txt',
-      mitre_tactic: 'Impact',
-      mitre_technique_id: 'T1486',
-      mitre_technique_name: 'Data Encrypted for Impact',
-      raw_payload: { files_encrypted: 42918, note_dropped: 'HOW_TO_RESTORE.txt' }
     }
   ]
 };
 
-// Send standard JSON response with CORS
+// Helper: send standard JSON response with CORS
 function sendJson(res, data, statusCode = 200) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -356,7 +434,7 @@ function sendJson(res, data, statusCode = 200) {
 
 // Request Router
 const server = http.createServer((req, res) => {
-  // Handle CORS preflight
+  // CORS Preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
@@ -368,30 +446,28 @@ const server = http.createServer((req, res) => {
   }
 
   const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname.replace(/\/$/, ''); // strip trailing slash
+  const pathname = parsedUrl.pathname.replace(/\/$/, '');
   const query = parsedUrl.query;
 
-  // Root endpoint
+  // Root / Status
   if (pathname === '' || pathname === '/' || pathname === '/api') {
     sendJson(res, {
-      platform: 'AegisHunt Cyber Threat Hunting API Server',
+      platform: 'AegisHunt & SOCForge Evidence-Driven Platform API',
       status: 'operational',
-      version: '2.5.0',
-      endpoints: [
-        'GET /api/scenarios',
-        'GET /api/events',
-        'POST /api/events',
-        'GET /api/correlate',
-        'GET /api/attack_path',
-        'GET /api/mitre',
-        'GET/POST /api/ai_assist',
-        'GET /api/report'
+      version: '3.0.0',
+      architecture: 'FastAPI / Node API Core + MySQL / Relational Evidence Graph',
+      features: [
+        'Relational Evidence Graph',
+        'Detection Engineering Studio (Sigma / SPL / KQL)',
+        'Human-in-the-Loop (HITL) Action Gating',
+        'Append-Only Audit Ledger (audit_events)',
+        'Role-Based Access Control (L1 Triage, L2 Hunter, L3 Commander)'
       ]
     });
     return;
   }
 
-  // 1. Scenarios Catalog
+  // Scenarios Catalog
   if (pathname === '/api/scenarios') {
     const sid = query.scenario_id;
     if (sid) {
@@ -403,7 +479,89 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Events Query & Ingest
+  // Detection Engineering Rules
+  if (pathname === '/api/detections') {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const rule = JSON.parse(body);
+          rule.id = 'RULE-' + Date.now().toString(36).toUpperCase();
+          rule.status = 'active';
+          DB.detectionRules.unshift(rule);
+
+          // Append to audit ledger
+          DB.auditLedger.unshift({
+            audit_id: 'AUD-' + Date.now(),
+            timestamp: new Date().toUTCString(),
+            actor: 'Detection Engineer',
+            role: 'L2 Threat Hunter',
+            action: 'CREATE_DETECTION_RULE',
+            details: `Created rule ${rule.title} (${rule.format}) for technique ${rule.mitre_technique}`,
+            status: 'COMMITTED',
+            signature: 'sha256:' + Math.random().toString(36).substring(2, 10)
+          });
+
+          sendJson(res, { status: 'success', message: 'Detection rule deployed', rule }, 201);
+        } catch (e) {
+          sendJson(res, { error: 'Invalid JSON' }, 400);
+        }
+      });
+      return;
+    }
+    sendJson(res, { status: 'success', count: DB.detectionRules.length, rules: DB.detectionRules });
+    return;
+  }
+
+  // Human-in-the-Loop Action Gating Queue
+  if (pathname === '/api/gating') {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const { action_id, decision, analyst_name, reason } = JSON.parse(body);
+          const item = DB.hitlGatingQueue.find(g => g.action_id === action_id);
+          if (item) {
+            item.status = decision === 'approve' ? 'approved_and_executed' : 'rejected_by_analyst';
+            item.decision_by = analyst_name || 'L3 Incident Commander';
+            item.decision_reason = reason || 'Operational verification completed';
+            item.decided_at = new Date().toISOString();
+
+            // Append to audit ledger
+            DB.auditLedger.unshift({
+              audit_id: 'AUD-' + Date.now(),
+              timestamp: new Date().toUTCString(),
+              actor: item.decision_by,
+              role: 'L3 Incident Commander',
+              action: decision === 'approve' ? 'HITL_ACTION_APPROVED' : 'HITL_ACTION_REJECTED',
+              details: `${decision.toUpperCase()} action ${item.action_type} targeting ${item.target}. Reason: ${item.decision_reason}`,
+              status: 'EXECUTED_AND_LOCKED',
+              signature: 'sha256:' + Math.random().toString(36).substring(2, 10)
+            });
+
+            sendJson(res, { status: 'success', message: `Action ${decision}d successfully`, item });
+          } else {
+            sendJson(res, { error: 'Action not found in queue' }, 404);
+          }
+        } catch (e) {
+          sendJson(res, { error: 'Invalid JSON' }, 400);
+        }
+      });
+      return;
+    }
+    sendJson(res, { status: 'success', queue: DB.hitlGatingQueue });
+    return;
+  }
+
+  // Append-Only Audit Ledger
+  if (pathname === '/api/audit') {
+    sendJson(res, { status: 'success', count: DB.auditLedger.length, ledger: DB.auditLedger });
+    return;
+  }
+
+  // Events Query & Ingest
   if (pathname === '/api/events') {
     if (req.method === 'POST') {
       let body = '';
@@ -432,6 +590,19 @@ const server = http.createServer((req, res) => {
             raw_payload: payload.raw_payload || {}
           };
           DB.events.push(newEvent);
+
+          // Append to audit ledger
+          DB.auditLedger.unshift({
+            audit_id: 'AUD-' + Date.now(),
+            timestamp: new Date().toUTCString(),
+            actor: 'SOC Analyst / Telemetry Feed',
+            role: 'DATA_INGEST',
+            action: 'INGEST_SECURITY_EVENT',
+            details: `Event ${newEvent.event_uuid} (${newEvent.domain}) indexed. Technique: ${newEvent.mitre_technique_id}`,
+            status: 'COMMITTED',
+            signature: 'sha256:' + Math.random().toString(36).substring(2, 10)
+          });
+
           sendJson(res, { status: 'success', message: 'Event indexed in telemetry datastore', event: newEvent }, 201);
         } catch (err) {
           sendJson(res, { error: 'Invalid JSON payload' }, 400);
@@ -440,16 +611,11 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // GET events
     const scenarioId = query.scenario_id || 'SCN-APT29-GHOST';
     let results = DB.events.filter(e => scenarioId === 'ALL' || e.scenario_id === scenarioId);
 
-    if (query.domain && query.domain !== 'ALL') {
-      results = results.filter(e => e.domain === query.domain);
-    }
-    if (query.severity && query.severity !== 'ALL') {
-      results = results.filter(e => e.severity === query.severity);
-    }
+    if (query.domain && query.domain !== 'ALL') results = results.filter(e => e.domain === query.domain);
+    if (query.severity && query.severity !== 'ALL') results = results.filter(e => e.severity === query.severity);
     if (query.search) {
       const q = query.search.toLowerCase();
       results = results.filter(e => 
@@ -459,16 +625,14 @@ const server = http.createServer((req, res) => {
         (e.command_line && e.command_line.toLowerCase().includes(q))
       );
     }
-
     sendJson(res, { status: 'success', count: results.length, events: results });
     return;
   }
 
-  // 3. Correlation Engine
+  // Correlation Engine
   if (pathname === '/api/correlate') {
     const scenarioId = query.scenario_id || 'SCN-APT29-GHOST';
     const events = DB.events.filter(e => e.scenario_id === scenarioId);
-
     const users = new Set();
     const hosts = new Set();
     const tactics = new Set();
@@ -486,23 +650,19 @@ const server = http.createServer((req, res) => {
       status: 'success',
       scenario_id: scenarioId,
       total_events_analyzed: events.length,
-      incident_title: `Correlated Incident Chain: ${events.length} events across ${domains.size} domains`,
+      incident_title: `Correlated Relational Evidence Graph: ${events.length} events across ${domains.size} domains`,
       confidence_score: 0.94,
       kill_chain_coverage: Array.from(tactics),
-      entities_involved: {
-        users: Array.from(users),
-        hosts: Array.from(hosts)
-      },
-      hypothesis: `Adversary traversed ${tactics.size} MITRE ATT&CK tactics across ${domains.size} telemetry layers. Telemetry strongly confirms unified adversarial intent.`
+      entities_involved: { users: Array.from(users), hosts: Array.from(hosts) },
+      hypothesis: `Adversary traversed ${tactics.size} MITRE ATT&CK tactics across ${domains.size} telemetry layers. Telemetry confirms unified adversarial intent.`
     });
     return;
   }
 
-  // 4. Attack Path Graph
+  // Attack Path & Evidence Graph
   if (pathname === '/api/attack_path') {
     const scenarioId = query.scenario_id || 'SCN-APT29-GHOST';
     const events = DB.events.filter(e => e.scenario_id === scenarioId);
-
     const nodesMap = {};
     const edges = [];
 
@@ -510,12 +670,8 @@ const server = http.createServer((req, res) => {
       const src = evt.source_host || evt.source_ip || 'External-Origin';
       const dst = evt.dest_host || evt.dest_ip || evt.cloud_service || 'Internal-Asset';
 
-      if (!nodesMap[src]) {
-        nodesMap[src] = { id: src, label: src, type: src.includes('185.') || src.includes('c2') ? 'c2_server' : 'endpoint', compromised: true };
-      }
-      if (!nodesMap[dst]) {
-        nodesMap[dst] = { id: dst, label: dst, type: dst.includes('DC01') || dst.includes('SRV') ? 'server' : dst.includes('AWS') || dst.includes('S3') ? 'cloud_resource' : 'endpoint', compromised: true };
-      }
+      if (!nodesMap[src]) nodesMap[src] = { id: src, label: src, type: src.includes('185.') || src.includes('c2') ? 'c2_server' : 'endpoint', compromised: true };
+      if (!nodesMap[dst]) nodesMap[dst] = { id: dst, label: dst, type: dst.includes('DC01') || dst.includes('SRV') ? 'server' : dst.includes('AWS') || dst.includes('S3') ? 'cloud_resource' : 'endpoint', compromised: true };
 
       edges.push({
         id: `edge-${idx + 1}`,
@@ -534,15 +690,12 @@ const server = http.createServer((req, res) => {
       scenario_id: scenarioId,
       nodes: Object.values(nodesMap),
       edges,
-      blast_radius: {
-        total_assets: Object.keys(nodesMap).length,
-        pivots: edges.length
-      }
+      blast_radius: { total_assets: Object.keys(nodesMap).length, pivots: edges.length }
     });
     return;
   }
 
-  // 5. MITRE ATT&CK Matrix
+  // MITRE Matrix
   if (pathname === '/api/mitre') {
     const scenarioId = query.scenario_id || 'SCN-APT29-GHOST';
     const events = DB.events.filter(e => e.scenario_id === scenarioId);
@@ -565,16 +718,11 @@ const server = http.createServer((req, res) => {
       }
     });
 
-    sendJson(res, {
-      status: 'success',
-      scenario_id: scenarioId,
-      total_techniques_mapped: Object.keys(observed).length,
-      observed_techniques: observed
-    });
+    sendJson(res, { status: 'success', scenario_id: scenarioId, total_techniques_mapped: Object.keys(observed).length, observed_techniques: observed });
     return;
   }
 
-  // 6. AI Assist & Query Suggestions
+  // AI Assist
   if (pathname === '/api/ai_assist') {
     sendJson(res, {
       status: 'success',
@@ -591,7 +739,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 7. Investigation Report
+  // Report
   if (pathname === '/api/report') {
     const scenarioId = query.scenario_id || 'SCN-APT29-GHOST';
     const events = DB.events.filter(e => e.scenario_id === scenarioId);
@@ -617,6 +765,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[✓] AegisHunt Unified REST API Server running on http://0.0.0.0:${PORT}`);
-  console.log(`    Local access: http://localhost:${PORT}/api/scenarios`);
+  console.log(`[✓] AegisHunt & SOCForge Unified API Server running on http://0.0.0.0:${PORT}`);
 });

@@ -12,6 +12,9 @@ import IngestionPanel from './components/IngestionPanel';
 import TerminalConsole from './components/TerminalConsole';
 import KibanaDiscover from './components/KibanaDiscover';
 import KibanaSearchBar from './components/KibanaSearchBar';
+import DetectionStudio from './components/DetectionStudio';
+import HitlGatingPanel from './components/HitlGatingPanel';
+import AuditLedgerView from './components/AuditLedgerView';
 import { api } from './services/api';
 import { 
   GitCommit, 
@@ -30,14 +33,17 @@ import {
   LayoutDashboard,
   Compass,
   FileCode2,
-  FileText
+  FileText,
+  BookOpen,
+  AlertOctagon,
+  Shield
 } from 'lucide-react';
 
 export default function App() {
   const [scenarios, setScenarios] = useState([]);
   const [activeScenarioId, setActiveScenarioId] = useState('SCN-APT29-GHOST');
   const [backendStatus, setBackendStatus] = useState({ online: false, url: '' });
-  const [activeTab, setActiveTab] = useState('discover'); // 'dashboard' | 'discover' | 'graph' | 'timeline' | 'mitre' | 'terminal' | 'ai'
+  const [activeTab, setActiveTab] = useState('discover'); // 'dashboard' | 'discover' | 'graph' | 'timeline' | 'mitre' | 'terminal' | 'ai' | 'detection' | 'gating' | 'audit'
   const [searchQuery, setSearchQuery] = useState('');
 
   // Scenario Data States
@@ -213,7 +219,6 @@ export default function App() {
             <span className="text-[10px] font-mono font-bold text-slate-500 uppercase px-2.5 py-1 block tracking-wider">
               Elastic / Splunk SOC
             </span>
-
             <button
               onClick={() => setActiveTab('discover')}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
@@ -313,6 +318,58 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <LayoutDashboard className="w-4 h-4 text-slate-400" />
                 <span>Overview KPIs</span>
+              </div>
+            </button>
+          </div>
+
+          {/* SOCForge Section */}
+          <div className="bg-[#0B0F19] border border-slate-800 rounded-xl p-2.5 shadow-xl space-y-1">
+            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase px-2.5 py-1 block tracking-wider">
+              SOCForge — Detection
+            </span>
+
+            <button
+              onClick={() => setActiveTab('detection')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'detection'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-blue-400 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-blue-400" />
+                <span>Detection Studio</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('gating')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'gating'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-bold'
+                  : 'text-slate-400 hover:text-amber-400 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <AlertOctagon className="w-4 h-4 text-amber-400" />
+                <span>HITL Gating</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
+                2
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'audit'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 font-bold'
+                  : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-emerald-400" />
+                <span>Audit Ledger</span>
               </div>
             </button>
           </div>
@@ -434,6 +491,10 @@ export default function App() {
                   />
                 </div>
               )}
+
+              {activeTab === 'detection' && <DetectionStudio />}
+              {activeTab === 'gating' && <HitlGatingPanel />}
+              {activeTab === 'audit' && <AuditLedgerView />}
             </div>
           )}
 
