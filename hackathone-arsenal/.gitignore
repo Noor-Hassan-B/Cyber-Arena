@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Environment and secrets
+# (Retain .env.example if needed)
+*.log
+*.sqlite3
+
+# OS metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -23,13 +23,14 @@ import {
   FileText, Flame, AlertTriangle, CheckCircle2, Database,
   RefreshCw, Layers, Bell, User, ChevronDown, Zap, Radio,
   Activity, Eye, Settings, ChevronLeft, ChevronRight, Menu,
-  Globe, Crosshair, Wifi, Share2, Lock, Fingerprint
+  Globe, Crosshair, Wifi, Share2, Lock, Fingerprint,
+  Sun, Moon
 } from 'lucide-react';
 
 // ─── Sidebar Nav Item ─────────────────────────────────────────────────────────
-function NavItem({ icon: Icon, label, tabId, activeTab, onClick, badge, iconColor, activeColor }) {
+function NavItem({ icon: Icon, label, tabId, activeTab, onClick, badge, iconColor, activeColor, isDark = true }) {
   const isActive = activeTab === tabId;
-  const ac = activeColor || 'bg-blue-600/15 text-blue-300 border-blue-500/30';
+  const ac = activeColor || (isDark ? 'bg-blue-600/15 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-300 shadow-sm');
 
   return (
     <button
@@ -37,10 +38,12 @@ function NavItem({ icon: Icon, label, tabId, activeTab, onClick, badge, iconColo
       className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
         isActive
           ? `${ac} border shadow-sm`
-          : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border border-transparent'
+          : isDark
+          ? 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border border-transparent'
+          : 'text-gray-600 hover:bg-slate-100 hover:text-gray-900 border border-transparent'
       }`}
     >
-      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? '' : iconColor || 'text-gray-500'}`} />
+      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? '' : iconColor || (isDark ? 'text-gray-500' : 'text-gray-400')}`} />
       <span className="truncate">{label}</span>
       {badge !== undefined && (
         <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full border ${
@@ -50,7 +53,7 @@ function NavItem({ icon: Icon, label, tabId, activeTab, onClick, badge, iconColo
             ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
             : typeof badge === 'string' && badge === 'SHA-256'
             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-            : 'bg-gray-700/50 text-gray-400 border-gray-600/30'
+            : isDark ? 'bg-gray-700/50 text-gray-400 border-gray-600/30' : 'bg-slate-200 text-slate-700 border-slate-300'
         }`}>
           {badge}
         </span>
@@ -96,6 +99,24 @@ export default function App() {
   const [showIngestModal, setShowIngestModal] = useState(false);
   const [containmentAlert, setContainmentAlert] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Theme Management (Dark / Light)
+  const [theme, setTheme] = useState(() => localStorage.getItem('aegis_theme') || 'dark');
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.remove('dark');
+      root.classList.add('light');
+    }
+    localStorage.setItem('aegis_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  const isDark = theme === 'dark';
 
   // 1. Init
   useEffect(() => {
@@ -195,21 +216,21 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-[#0b0f17] text-gray-100 font-sans antialiased flex">
+    <div className={`h-screen overflow-hidden ${isDark ? 'bg-[#0b0f17] text-gray-100' : 'bg-[#f8fafc] text-slate-800'} font-sans antialiased flex transition-colors`}>
 
       {/* ═══════════════════════════════════════════════════════════════════════
           LEFT SIDEBAR — High-density SOCForge Layout
          ═══════════════════════════════════════════════════════════════════════ */}
-      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-[#111827] border-r border-[#1f293d] flex flex-col z-30 transition-all duration-300 select-none shrink-0`}>
+      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} ${isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200 shadow-sm'} border-r flex flex-col z-30 transition-all duration-300 select-none shrink-0`}>
 
         {/* Brand Header */}
-        <div className="h-16 flex items-center px-4 border-b border-[#1f293d] gap-3">
+        <div className={`h-16 flex items-center px-4 border-b ${isDark ? 'border-[#1f293d]' : 'border-slate-200'} gap-3`}>
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-900 flex items-center justify-center shadow-inner shadow-blue-400/30 shrink-0">
             <ShieldCheck className="w-5 h-5 text-blue-300" />
           </div>
           {!sidebarCollapsed && (
             <div className="min-w-0">
-              <span className="font-bold tracking-wider text-base bg-gradient-to-r from-white via-gray-200 to-blue-400 bg-clip-text text-transparent block">
+              <span className={`font-bold tracking-wider text-base ${isDark ? 'bg-gradient-to-r from-white via-gray-200 to-blue-400 bg-clip-text text-transparent' : 'text-slate-900 font-bold'} block`}>
                 SOCForge
               </span>
               <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest block -mt-0.5">
@@ -219,7 +240,7 @@ export default function App() {
           )}
           <button
             onClick={() => setSidebarCollapsed(v => !v)}
-            className="ml-auto p-1 rounded hover:bg-gray-700/50 text-gray-500 hover:text-gray-300 transition"
+            className={`ml-auto p-1 rounded transition ${isDark ? 'hover:bg-gray-700/50 text-gray-500 hover:text-gray-300' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}
           >
             {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
@@ -397,43 +418,49 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* ─── TOP HEADER BAR ────────────────────────────────────────────── */}
-        <header className="h-16 bg-[#111827] border-b border-[#1f293d] flex items-center px-6 gap-4 shrink-0 z-20">
+        <header className={`h-16 ${isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200 shadow-sm'} border-b flex items-center px-6 gap-4 shrink-0 z-20 transition-colors`}>
           
           {/* Page Title & Breadcrumb */}
           <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-base font-bold text-white tracking-wide truncate font-mono">
+            <h1 className={`text-base font-bold tracking-wide truncate font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
               {PAGE_TITLES[activeTab] || 'Command Center'}
             </h1>
           </div>
 
           {/* Connectors Status Ribbon */}
-          <div className="hidden xl:flex items-center gap-2 bg-[#0b0f17] border border-[#1f293d] px-3 py-1.5 rounded-lg text-[10px] font-mono text-gray-400">
-            <span className="flex items-center gap-1 text-emerald-400">
+          <div className={`hidden xl:flex items-center gap-2 border px-3 py-1.5 rounded-lg text-[10px] font-mono ${
+            isDark ? 'bg-[#0b0f17] border-[#1f293d] text-gray-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+          }`}>
+            <span className="flex items-center gap-1 text-emerald-500 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Wazuh
             </span>
-            <span className="text-gray-600">&bull;</span>
-            <span className="flex items-center gap-1 text-emerald-400">
+            <span className="text-gray-400">&bull;</span>
+            <span className="flex items-center gap-1 text-emerald-500 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sentinel
             </span>
-            <span className="text-gray-600">&bull;</span>
-            <span className="flex items-center gap-1 text-emerald-400">
+            <span className="text-gray-400">&bull;</span>
+            <span className="flex items-center gap-1 text-emerald-500 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Splunk
             </span>
-            <span className="text-gray-600">&bull;</span>
-            <span className="flex items-center gap-1 text-cyan-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" /> Sysmon
+            <span className="text-gray-400">&bull;</span>
+            <span className="flex items-center gap-1 text-cyan-500 font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> Sysmon
             </span>
           </div>
 
           {/* Global IOC Search */}
           <div className="flex-1 max-w-md mx-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search IOCs, hashes, IPs, hosts, TTPs..."
-                className="w-full pl-9 pr-4 py-1.5 bg-[#0b0f17] border border-[#1f293d] rounded-lg text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500/50 font-mono transition"
+                className={`w-full pl-9 pr-4 py-1.5 border rounded-lg text-xs font-mono transition ${
+                  isDark
+                    ? 'bg-[#0b0f17] border-[#1f293d] text-gray-200 placeholder-gray-600 focus:border-blue-500/50'
+                    : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-500'
+                }`}
               />
             </div>
           </div>
@@ -459,33 +486,62 @@ export default function App() {
             {/* Quick Actions */}
             <button
               onClick={() => setShowIngestModal(true)}
-              className="p-2 rounded-lg hover:bg-gray-800/60 text-gray-400 hover:text-cyan-400 transition"
+              className={`p-2 rounded-lg transition ${
+                isDark ? 'hover:bg-gray-800/60 text-gray-400 hover:text-cyan-400' : 'hover:bg-slate-100 text-slate-500 hover:text-cyan-600'
+              }`}
               title="Ingest Telemetry Log"
             >
               <Flame className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowReportModal(true)}
-              className="p-2 rounded-lg hover:bg-gray-800/60 text-gray-400 hover:text-blue-400 transition"
+              className={`p-2 rounded-lg transition ${
+                isDark ? 'hover:bg-gray-800/60 text-gray-400 hover:text-blue-400' : 'hover:bg-slate-100 text-slate-500 hover:text-blue-600'
+              }`}
               title="Export Incident Dossier"
             >
               <FileText className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowLimitationsModal(true)}
-              className="p-2 rounded-lg hover:bg-gray-800/60 text-gray-400 hover:text-amber-400 transition"
+              className={`p-2 rounded-lg transition ${
+                isDark ? 'hover:bg-gray-800/60 text-gray-400 hover:text-amber-400' : 'hover:bg-slate-100 text-slate-500 hover:text-amber-600'
+              }`}
               title="AI Limitations & Governance"
             >
               <AlertTriangle className="w-4 h-4" />
             </button>
 
+            {/* Dark / Light Theme Changer Button */}
+            <button
+              onClick={toggleTheme}
+              className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 font-mono text-xs font-semibold transition shadow-sm ${
+                isDark
+                  ? 'bg-gray-800/90 border-gray-700 text-amber-300 hover:bg-gray-700 hover:border-gray-600'
+                  : 'bg-slate-100 border-slate-300 text-indigo-700 hover:bg-slate-200 hover:border-slate-400'
+              }`}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-600" />
+                  <span className="hidden sm:inline">Dark</span>
+                </>
+              )}
+            </button>
+
             {/* Analyst Avatar with RBAC Role */}
-            <div className="flex items-center gap-2 pl-2 border-l border-[#1f293d]">
+            <div className={`flex items-center gap-2 pl-2 border-l ${isDark ? 'border-[#1f293d]' : 'border-slate-200'}`}>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-xs font-bold border border-blue-400/30 shadow-md">
                 SM
               </div>
               <div className="hidden md:block text-left">
-                <div className="text-xs font-bold text-gray-200 leading-tight">Sandeep M.</div>
+                <div className={`text-xs font-bold leading-tight ${isDark ? 'text-gray-200' : 'text-slate-800'}`}>Sandeep M.</div>
                 <div className="text-[9px] font-mono text-gray-500">L2 Sr. Hunter</div>
               </div>
             </div>
@@ -493,7 +549,7 @@ export default function App() {
         </header>
 
         {/* ─── MAIN CONTENT VIEWPORT ─────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto p-6 bg-[#0b0f17]">
+        <main className={`flex-1 overflow-y-auto p-6 transition-colors ${isDark ? 'bg-[#0b0f17]' : 'bg-[#f8fafc]'}`}>
           {/* Floating Toast Notification */}
           {containmentAlert && (
             <div className="fixed top-20 right-6 z-50 bg-[#111827] border-2 border-emerald-500/60 rounded-xl p-4 shadow-2xl flex items-center gap-3 max-w-md animate-pulse">
@@ -540,17 +596,23 @@ export default function App() {
                   </div>
 
                   {/* Row 1: Attack Path Topology (Full Width in a Straight Line) */}
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5 shadow-xl">
-                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
+                  <div className={`border rounded-xl p-5 shadow-xl transition-colors ${
+                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
+                  }`}>
+                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} theme={theme} />
                   </div>
 
                   {/* Row 2: Incident Overview & Correlation Stats (Directly Below, Full Width in a Straight Line) */}
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5 shadow-xl">
+                  <div className={`border rounded-xl p-5 shadow-xl transition-colors ${
+                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
+                  }`}>
                     <OverviewStats correlationData={correlationData} scenario={activeScenario} events={events} />
                   </div>
 
                   {/* Telemetry Log Stream */}
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
+                  <div className={`border rounded-xl p-5 transition-colors ${
+                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
+                  }`}>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <Radio className="w-4 h-4 text-cyan-400" />
@@ -616,15 +678,19 @@ export default function App() {
               {/* ══ 5. ATTACK PATH GRAPH ══ */}
               {activeTab === 'graph' && (
                 <div className="space-y-6">
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
+                  <div className={`border rounded-xl p-5 transition-colors ${
+                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
+                  }`}>
                     <div className="flex items-center gap-2 mb-4">
                       <GitCommit className="w-4 h-4 text-indigo-400" />
-                      <h2 className="text-sm font-semibold text-gray-200">Relational Evidence Graph Topology</h2>
+                      <h2 className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-slate-800'}`}>Relational Evidence Graph Topology</h2>
                       <span className="text-[10px] font-mono text-gray-500">Entity-linked IOC path</span>
                     </div>
-                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
+                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} theme={theme} />
                   </div>
-                  <div className="bg-[#111827] border border-[#1f293d] rounded-xl p-5">
+                  <div className={`border rounded-xl p-5 transition-colors ${
+                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
+                  }`}>
                     <TerminalConsole onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
                   </div>
                 </div>
