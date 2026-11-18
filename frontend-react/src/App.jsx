@@ -26,7 +26,7 @@ import {
   Activity, Eye, Settings, ChevronLeft, ChevronRight,
   Globe, Crosshair, Wifi, Share2, Lock, Fingerprint,
   Sun, Moon, Network, Cpu, BarChart2, Radar, Target,
-  ArrowUpRight, TrendingUp, ArrowRight, Satellite
+  ArrowUpRight, TrendingUp, ArrowRight, Satellite, RotateCcw
 } from 'lucide-react';
 
 // ─── Sh4d0w_Br0k3rs Top Nav Tabs ─────────────────────────────────────────────
@@ -113,6 +113,19 @@ export default function App() {
   const [containmentAlert, setContainmentAlert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [correlating, setCorrelating] = useState(false);
+  const [isResetToZero, setIsResetToZero] = useState(false);
+
+  const handleToggleResetStats = () => {
+    setIsResetToZero(prev => {
+      const next = !prev;
+      setContainmentAlert({
+        title: next ? 'Statistics Reset to Zero' : 'Statistics Restored',
+        text: next ? 'All telemetry counters and rates reset to 0.' : 'Live scenario telemetry and baseline restored.'
+      });
+      setTimeout(() => setContainmentAlert(null), 4000);
+      return next;
+    });
+  };
 
   // Theme - Defaults to pristine White Theme as requested
   const [theme, setTheme] = useState(() => localStorage.getItem('aegis_theme') || 'light');
@@ -188,17 +201,17 @@ export default function App() {
   };
 
   const severityCounts = {
-    critical: events.filter(e => e.severity === 'critical').length,
-    high: events.filter(e => e.severity === 'high').length,
+    critical: isResetToZero ? 0 : events.filter(e => e.severity === 'critical').length,
+    high: isResetToZero ? 0 : events.filter(e => e.severity === 'high').length,
   };
 
   // Telemetry breakdown stats
-  const totalEvents = Math.max(events.length, 1);
+  const totalEvents = isResetToZero ? 0 : Math.max(events.length, 1);
   const telemetryBreakdown = [
-    { label: 'Endpoint Telemetry',    value: events.filter(e => e.domain === 'endpoint').length || Math.round(totalEvents * 0.55), pct: 55, color: '#0284C7' },
-    { label: 'Network Flows (Zeek)',  value: Math.round(totalEvents * 0.25), pct: 25, color: '#7C3AED' },
-    { label: 'Cloud Infrastructure',  value: events.filter(e => e.domain === 'cloud').length || Math.round(totalEvents * 0.15), pct: 15, color: '#DB2777' },
-    { label: 'Active Directory Auth', value: Math.round(totalEvents * 0.10), pct: 10, color: '#059669' },
+    { label: 'Endpoint Telemetry',    value: isResetToZero ? 0 : (events.filter(e => e.domain === 'endpoint').length || Math.round(totalEvents * 0.55)), pct: isResetToZero ? 0 : 55, color: '#0284C7' },
+    { label: 'Network Flows (Zeek)',  value: isResetToZero ? 0 : Math.round(totalEvents * 0.25), pct: isResetToZero ? 0 : 25, color: '#7C3AED' },
+    { label: 'Cloud Infrastructure',  value: isResetToZero ? 0 : (events.filter(e => e.domain === 'cloud').length || Math.round(totalEvents * 0.15)), pct: isResetToZero ? 0 : 15, color: '#DB2777' },
+    { label: 'Active Directory Auth', value: isResetToZero ? 0 : Math.round(totalEvents * 0.10), pct: isResetToZero ? 0 : 10, color: '#059669' },
   ];
 
   return (
@@ -410,6 +423,22 @@ export default function App() {
                 </span>
               )}
 
+              {/* Reset to Zero Button */}
+              <button
+                onClick={handleToggleResetStats}
+                title={isResetToZero ? "Restore Baseline Statistics" : "Reset all statistics to zero (0)"}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-xs ${
+                  isResetToZero
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold animate-pulse'
+                    : isDark
+                      ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/25 text-red-400'
+                      : 'bg-red-50 border border-red-200 hover:bg-red-100 text-red-700'
+                }`}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                {isResetToZero ? 'Restore Stats' : 'Reset to 0'}
+              </button>
+
               {/* Ingest Telemetry button */}
               <button
                 onClick={() => setShowIngestModal(true)}
@@ -518,10 +547,10 @@ export default function App() {
                     {/* Top KPI bar */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
-                        { label: 'Correlated Events', value: events.length.toLocaleString(), icon: Activity, color: '#0284C7', trend: '+14%' },
-                        { label: 'Critical Alerts', value: severityCounts.critical, icon: AlertTriangle, color: '#DC2626' },
-                        { label: 'High Severity', value: severityCounts.high, icon: Zap, color: '#D97706' },
-                        { label: 'Kill Chain Coverage', value: '86%', icon: Crosshair, color: '#059669', trend: '+3%' },
+                        { label: 'Correlated Events', value: isResetToZero ? '0' : events.length.toLocaleString(), icon: Activity, color: '#0284C7', trend: isResetToZero ? null : '+14%' },
+                        { label: 'Critical Alerts', value: isResetToZero ? 0 : severityCounts.critical, icon: AlertTriangle, color: '#DC2626' },
+                        { label: 'High Severity', value: isResetToZero ? 0 : severityCounts.high, icon: Zap, color: '#D97706' },
+                        { label: 'Kill Chain Coverage', value: isResetToZero ? '0%' : '86%', icon: Crosshair, color: '#059669', trend: isResetToZero ? null : '+3%' },
                       ].map(stat => (
                         <div key={stat.label} className={`rounded-xl p-4 flex items-center gap-4 transition group ${
                           isDark
@@ -572,13 +601,27 @@ export default function App() {
                                 ALL TELEMETRY DETAIL <ArrowRight className="w-3 h-3" />
                               </button>
                             </div>
-                            <div className={`flex items-center gap-1.5 text-[10px] font-mono rounded-lg px-2.5 py-1 ${
-                              isDark
-                                ? 'text-emerald-400 bg-emerald-900/20 border border-emerald-900/40'
-                                : 'text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold'
-                            }`}>
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              LIVE
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleToggleResetStats}
+                                title={isResetToZero ? "Restore Baseline Statistics" : "Reset statistics to zero"}
+                                className={`text-[10px] font-mono flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition ${
+                                  isResetToZero
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-700 dark:text-emerald-400'
+                                    : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                                }`}
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                {isResetToZero ? 'Restore' : 'Reset to 0'}
+                              </button>
+                              <div className={`flex items-center gap-1.5 text-[10px] font-mono rounded-lg px-2.5 py-1 ${
+                                isDark
+                                  ? 'text-emerald-400 bg-emerald-900/20 border border-emerald-900/40'
+                                  : 'text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isResetToZero ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+                                {isResetToZero ? 'PAUSED' : 'LIVE'}
+                              </div>
                             </div>
                           </div>
 
@@ -587,7 +630,7 @@ export default function App() {
                             <div className={`text-5xl font-black font-mono tracking-tighter ${
                               isDark ? 'text-white' : 'text-slate-900'
                             }`}>
-                              {(events.length * 487 + 4951485).toLocaleString()}
+                              {isResetToZero ? '0' : (events.length * 487 + 4951485).toLocaleString()}
                             </div>
                           </div>
                           <div className={`text-[11px] font-mono uppercase tracking-widest mb-5 ${
@@ -608,15 +651,15 @@ export default function App() {
                         <div className="flex gap-3">
                           <MetricCard
                             label="Telemetry Velocity"
-                            value="18.4 ms"
+                            value={isResetToZero ? "0.0 ms" : "18.4 ms"}
                             sub="Avg correlation latency"
-                            trend="+14%"
+                            trend={isResetToZero ? null : "+14%"}
                             color="#0284C7"
                             isDark={isDark}
                           />
                           <MetricCard
                             label="Incident Trend"
-                            value="92,980"
+                            value={isResetToZero ? "0" : "92,980"}
                             sub="Compared to baseline"
                             color="#DB2777"
                             isDark={isDark}
@@ -625,7 +668,7 @@ export default function App() {
                         <div className="flex gap-3">
                           <MetricCard
                             label="Total Coverage"
-                            value="53,430,001"
+                            value={isResetToZero ? "0" : "53,430,001"}
                             sub="Verified threat vectors"
                             color="#7C3AED"
                             isDark={isDark}
@@ -644,12 +687,12 @@ export default function App() {
                               <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                                 <circle cx="18" cy="18" r="15" fill="none" stroke={isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0"} strokeWidth="3" />
                                 <circle cx="18" cy="18" r="15" fill="none" stroke="#7C3AED" strokeWidth="3"
-                                  strokeDasharray={`${23 * 94.2 / 100} 94.2`} strokeLinecap="round" />
+                                  strokeDasharray={isResetToZero ? "0 94.2" : `${23 * 94.2 / 100} 94.2`} strokeLinecap="round" />
                               </svg>
                               <div className={`absolute inset-0 flex items-center justify-center text-sm font-bold font-mono ${
                                 isDark ? 'text-purple-300' : 'text-purple-700'
                               }`}>
-                                23%
+                                {isResetToZero ? '0%' : '23%'}
                               </div>
                             </div>
                             <div className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-1 font-mono font-semibold">● Verified</div>
@@ -758,11 +801,20 @@ export default function App() {
                           </span>
                         </div>
                         <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>
-                          {events.length} security events correlated
+                          {isResetToZero ? '0' : events.length} security events correlated
                         </span>
                       </div>
                       <div className="space-y-1 max-h-52 overflow-y-auto">
-                        {events.slice(0, 10).map(evt => (
+                        {isResetToZero ? (
+                          <div className="py-8 text-center text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            </div>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">All Statistics and Telemetry Cleared to 0</span>
+                            <span className="text-[11px] text-slate-500">Click &ldquo;Restore Stats&rdquo; in the header or statistics card to reload live telemetry.</span>
+                          </div>
+                        ) : (
+                          events.slice(0, 10).map(evt => (
                           <button
                             key={evt.event_uuid}
                             onClick={() => handleSelectEvent(evt.event_uuid)}
@@ -805,7 +857,7 @@ export default function App() {
                                 : 'text-slate-400 group-hover:text-purple-600'
                             }`} />
                           </button>
-                        ))}
+                        )))}
                       </div>
                     </div>
                   </div>
