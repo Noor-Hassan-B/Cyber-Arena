@@ -5,7 +5,7 @@ echo ========================================================
 echo   Pushing Sh4d0w_Br0k3rs to Cyber-Arena Repo
 echo ========================================================
 echo.
-cd /d "C:\Users\nh219\.gemini\antigravity\scratch\threat-hunter"
+cd /d "%~dp0"
 git push origin main --force
 echo.
 if %ERRORLEVEL% EQU 0 (
