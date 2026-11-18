@@ -1,5 +1,5 @@
 // =========================================================================
-// AegisHunt & SOCForge Unified REST API Server & Telemetry Datastore
+// Sh4d0w_Br0k3rs Unified REST API Server & Telemetry Datastore
 // Features: Relational Evidence Graph, Detection Engineering (Sigma/SPL/KQL),
 // Human-in-the-Loop (HITL) Action Gating, Append-Only Audit Ledger, and RBAC
 // =========================================================================
@@ -507,7 +507,7 @@ const server = http.createServer((req, res) => {
   // Root / Status
   if (pathname === '' || pathname === '/' || pathname === '/api') {
     sendJson(res, {
-      platform: 'AegisHunt & SOCForge Evidence-Driven Platform API',
+      platform: 'Sh4d0w_Br0k3rs Evidence-Driven Platform API',
       status: 'operational',
       version: '3.0.0',
       architecture: 'FastAPI / Node API Core + MySQL / Relational Evidence Graph',
@@ -820,5 +820,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[✓] AegisHunt & SOCForge Unified API Server running on http://0.0.0.0:${PORT}`);
+  console.log(`[✓] Sh4d0w_Br0k3rs Unified API Server running on http://0.0.0.0:${PORT}`);
 });

@@ -16,61 +16,75 @@ import HitlGatingPanel from './components/HitlGatingPanel';
 import AuditLedgerView from './components/AuditLedgerView';
 import EvidenceVault from './components/EvidenceVault';
 import ThreatHuntingWorkspace from './components/ThreatHuntingWorkspace';
+import GlobeVisualization from './components/GlobeVisualization';
 import { api } from './services/api';
 import {
   ShieldCheck, LayoutDashboard, Search, GitCommit, Terminal,
   Grid, Clock, Sparkles, Shield, AlertOctagon, BookOpen,
   FileText, Flame, AlertTriangle, CheckCircle2, Database,
   RefreshCw, Layers, Bell, User, ChevronDown, Zap, Radio,
-  Activity, Eye, Settings, ChevronLeft, ChevronRight, Menu,
+  Activity, Eye, Settings, ChevronLeft, ChevronRight,
   Globe, Crosshair, Wifi, Share2, Lock, Fingerprint,
-  Sun, Moon
+  Sun, Moon, Network, Cpu, BarChart2, Radar, Target,
+  ArrowUpRight, TrendingUp, ArrowRight, Satellite
 } from 'lucide-react';
 
-// ─── Sidebar Nav Item ─────────────────────────────────────────────────────────
-function NavItem({ icon: Icon, label, tabId, activeTab, onClick, badge, iconColor, activeColor, isDark = true }) {
-  const isActive = activeTab === tabId;
-  const ac = activeColor || (isDark ? 'bg-blue-600/15 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-300 shadow-sm');
+// ─── Sh4d0w_Br0k3rs Top Nav Tabs ─────────────────────────────────────────────
+const TABS = [
+  { id: 'globe',     icon: Globe,       label: 'Overview & Globe' },
+  { id: 'graph',     icon: Network,     label: 'Attack Path Visualizer', dot: true },
+  { id: 'discover',  icon: Radar,       label: 'CIM Telemetry' },
+  { id: 'mitre',     icon: Grid,        label: 'MITRE Matrix' },
+  { id: 'terminal',  icon: Terminal,    label: 'Attack Sequences' },
+  { id: 'ai',        icon: Sparkles,    label: 'AI Copilot' },
+  { id: 'audit',     icon: BookOpen,    label: 'Investigation Reports' },
+  { id: 'detection', icon: Shield,      label: 'Detection Studio' },
+];
 
+// ─── Sidebar icon items ───────────────────────────────────────────────────────
+const SIDEBAR_ICONS = [
+  { id: 'globe',    Icon: Globe,         tooltip: 'Overview & Globe' },
+  { id: 'graph',    Icon: Network,       tooltip: 'Attack Path' },
+  { id: 'discover', Icon: BarChart2,     tooltip: 'CIM Telemetry' },
+  { id: 'mitre',    Icon: Grid,          tooltip: 'MITRE Matrix' },
+  { id: 'terminal', Icon: Zap,           tooltip: 'Attack Sequences' },
+  { id: 'ai',       Icon: Sparkles,      tooltip: 'AI Copilot' },
+  { id: 'audit',    Icon: FileText,      tooltip: 'Reports' },
+  { id: 'settings', Icon: Settings,      tooltip: 'Settings' },
+];
+
+// ─── Telemetry bar ────────────────────────────────────────────────────────────
+function TelemetryBar({ label, value, pct, color, isDark }) {
   return (
-    <button
-      onClick={() => onClick(tabId)}
-      className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-        isActive
-          ? `${ac} border shadow-sm`
-          : isDark
-          ? 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border border-transparent'
-          : 'text-gray-600 hover:bg-slate-100 hover:text-gray-900 border border-transparent'
-      }`}
-    >
-      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? '' : iconColor || (isDark ? 'text-gray-500' : 'text-gray-400')}`} />
-      <span className="truncate">{label}</span>
-      {badge !== undefined && (
-        <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full border ${
-          typeof badge === 'number' && badge > 0
-            ? 'bg-red-500/20 text-red-400 border-red-500/30'
-            : typeof badge === 'string' && badge === 'ACTIVE'
-            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-            : typeof badge === 'string' && badge === 'SHA-256'
-            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-            : isDark ? 'bg-gray-700/50 text-gray-400 border-gray-600/30' : 'bg-slate-200 text-slate-700 border-slate-300'
-        }`}>
-          {badge}
-        </span>
-      )}
-    </button>
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      <span className={`text-xs w-44 truncate ${isDark ? 'text-slate-300' : 'text-slate-700 font-medium'}`}>{label}</span>
+      <span className={`text-xs font-mono w-20 text-right ${isDark ? 'text-slate-200' : 'text-slate-900 font-bold'}`}>{value.toLocaleString()}</span>
+      <div className={`flex-1 rounded-full h-1.5 mx-2 min-w-[60px] ${isDark ? 'bg-white/5' : 'bg-slate-200/80'}`}>
+        <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+      <span className="text-xs font-bold w-8 text-right font-mono" style={{ color }}>{pct}%</span>
+    </div>
   );
 }
 
-// ─── DEFCON Threat Level Badge ────────────────────────────────────────────────
-function DefconBadge() {
+// ─── Metric mini card ─────────────────────────────────────────────────────────
+function MetricCard({ label, value, sub, trend, color = '#00D4FF', isDark }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-500/40 shadow-inner">
-      <span className="relative flex h-2.5 w-2.5">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-      </span>
-      <span className="text-[11px] font-mono font-bold text-red-400 tracking-wider">DEFCON 2</span>
+    <div className={`rounded-xl p-4 flex-1 min-w-0 transition-all ${
+      isDark
+        ? 'bg-white/[0.03] border border-white/[0.07]'
+        : 'bg-white border border-slate-200 shadow-xs hover:shadow-sm'
+    }`}>
+      <div className={`text-[10px] uppercase tracking-widest font-mono mb-1 ${isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'}`}>{label}</div>
+      {trend && (
+        <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-1">
+          <TrendingUp className="w-3 h-3" />
+          <span>{trend}</span>
+        </div>
+      )}
+      <div className="text-2xl font-bold font-mono" style={{ color }}>{value}</div>
+      {sub && <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{sub}</div>}
     </div>
   );
 }
@@ -79,11 +93,10 @@ export default function App() {
   const [scenarios, setScenarios] = useState([]);
   const [activeScenarioId, setActiveScenarioId] = useState('SCN-APT29-GHOST');
   const [backendStatus, setBackendStatus] = useState({ online: false, url: '' });
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('globe');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Scenario Data States
+  // Scenario Data
   const [events, setEvents] = useState([]);
   const [correlationData, setCorrelationData] = useState(null);
   const [graphData, setGraphData] = useState(null);
@@ -99,26 +112,19 @@ export default function App() {
   const [showIngestModal, setShowIngestModal] = useState(false);
   const [containmentAlert, setContainmentAlert] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [correlating, setCorrelating] = useState(false);
 
-  // Theme Management (Dark / Light)
-  const [theme, setTheme] = useState(() => localStorage.getItem('aegis_theme') || 'dark');
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-    }
-    localStorage.setItem('aegis_theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  // Theme - Defaults to pristine White Theme as requested
+  const [theme, setTheme] = useState(() => localStorage.getItem('aegis_theme') || 'light');
   const isDark = theme === 'dark';
 
-  // 1. Init
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.classList.toggle('light', !isDark);
+    localStorage.setItem('aegis_theme', theme);
+  }, [theme, isDark]);
+
+  // Init
   useEffect(() => {
     async function init() {
       const health = await api.checkBackendHealth();
@@ -130,9 +136,9 @@ export default function App() {
     init();
   }, []);
 
-  // 2. Load Scenario
   const loadScenarioData = async (scenarioId) => {
     setLoading(true);
+    setCorrelating(true);
     try {
       const [e, c, g, m, a, s] = await Promise.all([
         api.getEvents(scenarioId), api.getCorrelation(scenarioId),
@@ -142,7 +148,7 @@ export default function App() {
       setEvents(e); setCorrelationData(c); setGraphData(g);
       setMitreData(m); setAiSummary(a); setQuerySuggestions(s);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setTimeout(() => setCorrelating(false), 1500); }
   };
 
   useEffect(() => { if (activeScenarioId) loadScenarioData(activeScenarioId); }, [activeScenarioId]);
@@ -162,598 +168,806 @@ export default function App() {
     if (actionData.type === 'event') {
       await api.ingestEvent(actionData);
       await loadScenarioData(activeScenarioId);
-      setContainmentAlert({
-        title: 'Adversary Telemetry Ingested',
-        text: `${actionData.mitre_technique_id} — ${actionData.domain.toUpperCase()}`
-      });
+      setContainmentAlert({ title: 'Adversary Telemetry Ingested', text: `${actionData.mitre_technique_id} — ${actionData.domain.toUpperCase()}` });
       setTimeout(() => setContainmentAlert(null), 5000);
     } else if (actionData.type === 'containment') {
-      setContainmentAlert({
-        title: 'EDR Quarantine Active',
-        text: `Host isolation dispatched: ${actionData.host}`
-      });
+      setContainmentAlert({ title: 'EDR Quarantine Active', text: `Host isolation dispatched: ${actionData.host}` });
       setTimeout(() => setContainmentAlert(null), 5000);
     }
-  };
-
-  const handleRefreshBackend = async () => {
-    const health = await api.checkBackendHealth();
-    setBackendStatus(health);
-    loadScenarioData(activeScenarioId);
   };
 
   const filteredEvents = events.filter(evt => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    return `${evt.event_uuid} ${evt.domain} ${evt.event_type} ${evt.severity} ${evt.source_host || ''} ${evt.dest_host || ''} ${evt.source_ip || ''} ${evt.dest_ip || ''} ${evt.user_id || ''} ${evt.command_line || ''} ${evt.mitre_technique_id || ''} ${evt.mitre_tactic || ''}`.toLowerCase().includes(q);
+    return `${evt.event_uuid} ${evt.domain} ${evt.event_type} ${evt.severity} ${evt.source_host || ''} ${evt.dest_host || ''} ${evt.user_id || ''} ${evt.mitre_technique_id || ''}`.toLowerCase().includes(q);
   });
 
   const activeScenario = scenarios.find(s => s.scenario_id === activeScenarioId) || {
-    scenario_id: activeScenarioId, name: 'Cyber Attack Scenario',
-    threat_actor: 'Advanced Adversary', description: 'Correlating telemetry...'
+    scenario_id: activeScenarioId, name: 'Operation CloudSteal (Multi-Domain)',
+    threat_actor: 'APT29 / Cozy Bear', description: 'Multi-domain intrusion...'
   };
 
   const severityCounts = {
     critical: events.filter(e => e.severity === 'critical').length,
     high: events.filter(e => e.severity === 'high').length,
-    medium: events.filter(e => e.severity === 'medium').length,
   };
 
-  // Page titles for top header
-  const PAGE_TITLES = {
-    dashboard: 'Command Center & KPI Metrics',
-    vault: 'Evidence Vault & Relational Graph Centerpiece',
-    hunting: 'Hypothesis-Driven Threat Hunting & Triage Verdict',
-    discover: 'Multi-Vendor Alert Triage (Wazuh / Sentinel / Splunk)',
-    graph: 'Attack Path Topology & Lateral Spread Visualizer',
-    terminal: 'Adversary Attack Simulation Console (CLI)',
-    mitre: 'MITRE ATT&CK Matrix & Blindspot Heatmap',
-    timeline: 'Incident Chronology & Telemetry Reconstruction',
-    ai: 'AI Threat Copilot (Evidence-Grounded Insights)',
-    detection: 'Detection Engineering Studio (Sigma / SPL / KQL)',
-    gating: 'Human-in-the-Loop Dual-Gated Response Console',
-    audit: 'Append-Only Audit Ledger (Cryptographic SHA-256 Proof)',
-  };
+  // Telemetry breakdown stats
+  const totalEvents = Math.max(events.length, 1);
+  const telemetryBreakdown = [
+    { label: 'Endpoint Telemetry',    value: events.filter(e => e.domain === 'endpoint').length || Math.round(totalEvents * 0.55), pct: 55, color: '#0284C7' },
+    { label: 'Network Flows (Zeek)',  value: Math.round(totalEvents * 0.25), pct: 25, color: '#7C3AED' },
+    { label: 'Cloud Infrastructure',  value: events.filter(e => e.domain === 'cloud').length || Math.round(totalEvents * 0.15), pct: 15, color: '#DB2777' },
+    { label: 'Active Directory Auth', value: Math.round(totalEvents * 0.10), pct: 10, color: '#059669' },
+  ];
 
   return (
-    <div className={`h-screen overflow-hidden ${isDark ? 'bg-[#0b0f17] text-gray-100' : 'bg-[#f8fafc] text-slate-800'} font-sans antialiased flex transition-colors`}>
+    <div className={`h-screen flex flex-col overflow-hidden font-sans antialiased select-none transition-colors duration-200 ${
+      isDark ? 'bg-[#07070F] text-white' : 'bg-slate-100 text-slate-900'
+    }`}>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          LEFT SIDEBAR — High-density SOCForge Layout
-         ═══════════════════════════════════════════════════════════════════════ */}
-      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} ${isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200 shadow-sm'} border-r flex flex-col z-30 transition-all duration-300 select-none shrink-0`}>
-
-        {/* Brand Header */}
-        <div className={`h-16 flex items-center px-4 border-b ${isDark ? 'border-[#1f293d]' : 'border-slate-200'} gap-3`}>
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-900 flex items-center justify-center shadow-inner shadow-blue-400/30 shrink-0">
-            <ShieldCheck className="w-5 h-5 text-blue-300" />
-          </div>
-          {!sidebarCollapsed && (
-            <div className="min-w-0">
-              <span className={`font-bold tracking-wider text-base ${isDark ? 'bg-gradient-to-r from-white via-gray-200 to-blue-400 bg-clip-text text-transparent' : 'text-slate-900 font-bold'} block`}>
-                SOCForge
-              </span>
-              <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest block -mt-0.5">
-                Evidence-Driven SOC
-              </span>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(v => !v)}
-            className={`ml-auto p-1 rounded transition ${isDark ? 'hover:bg-gray-700/50 text-gray-500 hover:text-gray-300' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}
-          >
-            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+      {/* ══ STATUS BAR ════════════════════════════════════════════════════════ */}
+      <div className={`h-7 flex items-center px-5 gap-6 text-[10px] font-mono shrink-0 border-b backdrop-blur-md transition-colors ${
+        isDark
+          ? 'bg-black/80 border-purple-900/30 text-slate-300'
+          : 'bg-white/95 border-slate-200/90 text-slate-700 shadow-xs'
+      }`}>
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold tracking-widest">DEFCON 2: ELEVATED THREAT HUNTING</span>
+        </div>
+        <span className={isDark ? 'text-purple-800' : 'text-slate-300'}>|</span>
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+          </span>
+          <span className="text-cyan-600 dark:text-cyan-400 font-semibold tracking-widest">CIM NORMALIZATION: ACTIVE</span>
         </div>
 
-        {/* Navigation Section */}
-        <nav className={`flex-1 overflow-y-auto py-3 space-y-5 ${sidebarCollapsed ? 'px-2' : 'px-3'}`}>
+        <div className="ml-auto flex items-center gap-4">
+          <button
+            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition ${
+              isDark
+                ? 'text-slate-400 hover:text-slate-100 hover:bg-white/5'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 font-medium'
+            }`}
+            title="Toggle White / Dark Theme"
+          >
+            {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
+            <span className="font-sans font-semibold">{isDark ? 'Dark Theme' : 'White Theme'}</span>
+          </button>
+          <span className={isDark ? 'text-purple-800' : 'text-slate-300'}>|</span>
+          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+            <Database className="w-3 h-3" />
+            <span>DB: Dual-Engine (SQLite)</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+          <span className={isDark ? 'text-purple-800' : 'text-slate-300'}>|</span>
+          <span className={isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}>Node 22 &amp; React 19</span>
+        </div>
+      </div>
 
-          {/* 1. OPERATIONS */}
-          {!sidebarCollapsed && (
-            <div className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest px-3">
-              Operations & Triage
-            </div>
-          )}
-          <div className="space-y-1">
-            <NavItem 
-              icon={LayoutDashboard} 
-              label="Command Center" 
-              tabId="dashboard" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              iconColor="text-blue-400" 
-            />
-            <NavItem 
-              icon={Database} 
-              label="Evidence Vault" 
-              tabId="vault" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              badge="GRAPH"
-              iconColor="text-cyan-400"
-              activeColor="bg-cyan-600/15 text-cyan-300 border-cyan-500/30"
-            />
-            <NavItem 
-              icon={Crosshair} 
-              label="Threat Hunting" 
-              tabId="hunting" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              badge="ACTIVE"
-              iconColor="text-indigo-400"
-              activeColor="bg-indigo-600/15 text-indigo-300 border-indigo-500/30"
-            />
-            <NavItem 
-              icon={Search} 
-              label="Alert Triage" 
-              tabId="discover" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              badge={filteredEvents.length} 
-              iconColor="text-blue-400" 
-            />
-            <NavItem 
-              icon={GitCommit} 
-              label="Attack Path" 
-              tabId="graph" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              iconColor="text-purple-400" 
-            />
-            <NavItem 
-              icon={Clock} 
-              label="Timeline Stream" 
-              tabId="timeline" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              iconColor="text-rose-400" 
-            />
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ══ LEFT ICON SIDEBAR ══════════════════════════════════════════════ */}
+        <aside className={`w-14 flex flex-col items-center pt-4 pb-4 gap-1 shrink-0 z-30 transition-colors ${
+          isDark
+            ? 'bg-[#09091A] border-r border-purple-900/20'
+            : 'bg-white border-r border-slate-200/90 shadow-xs'
+        }`}>
+          {/* Logo */}
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-md mb-4 shrink-0 border border-purple-400/30">
+            <ShieldCheck className="w-5 h-5 text-white" />
           </div>
 
-          {/* 2. DETECTION & GATING */}
-          {!sidebarCollapsed && (
-            <div className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest px-3 pt-1">
-              Detection & Response
-            </div>
-          )}
-          <div className="space-y-1">
-            <NavItem 
-              icon={Shield} 
-              label="Detection Studio" 
-              tabId="detection" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              badge="SIGMA"
-              iconColor="text-sky-400" 
-            />
-            <NavItem 
-              icon={AlertOctagon} 
-              label="Response Gating" 
-              tabId="gating" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              badge={2} 
-              iconColor="text-amber-400" 
-              activeColor="bg-amber-600/15 text-amber-300 border-amber-500/30" 
-            />
-            <NavItem 
-              icon={Terminal} 
-              label="Simulation CLI" 
-              tabId="terminal" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              iconColor="text-emerald-400" 
-              activeColor="bg-emerald-600/15 text-emerald-300 border-emerald-500/30" 
-            />
-            <NavItem 
-              icon={Grid} 
-              label="MITRE ATT&CK" 
-              tabId="mitre" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              iconColor="text-amber-400" 
-            />
-            <NavItem 
-              icon={BookOpen} 
-              label="Audit Ledger" 
-              tabId="audit" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              badge="SHA-256"
-              iconColor="text-emerald-400" 
-              activeColor="bg-emerald-600/15 text-emerald-300 border-emerald-500/30" 
-            />
-            <NavItem 
-              icon={Sparkles} 
-              label="AI Threat Copilot" 
-              tabId="ai" 
-              activeTab={activeTab} 
-              onClick={setActiveTab} 
-              iconColor="text-purple-400" 
-              activeColor="bg-purple-600/15 text-purple-300 border-purple-500/30" 
-            />
-          </div>
-        </nav>
+          {/* Nav icons */}
+          {SIDEBAR_ICONS.map(({ id, Icon, tooltip }) => (
+            <button
+              key={id}
+              onClick={() => id !== 'settings' && setActiveTab(id)}
+              title={tooltip}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all group relative ${
+                activeTab === id
+                  ? isDark
+                    ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50 shadow-md shadow-purple-900/40'
+                    : 'bg-purple-100 text-purple-700 border border-purple-300 shadow-xs font-bold'
+                  : isDark
+                    ? 'text-slate-600 hover:text-slate-300 hover:bg-white/5 border border-transparent'
+                    : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100 border border-transparent'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {/* Tooltip */}
+              <span className={`absolute left-12 text-[10px] px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 font-mono shadow-md ${
+                isDark
+                  ? 'bg-[#1A1A3A] text-white border border-purple-900/50'
+                  : 'bg-slate-900 text-white border border-slate-700'
+              }`}>
+                {tooltip}
+              </span>
+            </button>
+          ))}
 
-        {/* Sidebar Bottom: Scenario + Engine Indicator */}
-        {!sidebarCollapsed && (
-          <div className="border-t border-[#1f293d] p-3 space-y-2">
-            <div className="bg-[#0b0f17] rounded-lg border border-[#1f293d] p-2.5">
-              <div className="text-[9px] font-mono text-gray-500 uppercase tracking-wider mb-1">
-                Active Incident Scenario
+          <div className="mt-auto space-y-1">
+            <button
+              title="Ingest Telemetry"
+              onClick={() => setShowIngestModal(true)}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition border border-transparent ${
+                isDark
+                  ? 'text-slate-500 hover:text-cyan-400 hover:bg-cyan-900/20 hover:border-cyan-900/40'
+                  : 'text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200'
+              }`}
+            >
+              <Flame className="w-4 h-4 text-amber-500" />
+            </button>
+            <button
+              title="Export Report"
+              onClick={() => setShowReportModal(true)}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition border border-transparent ${
+                isDark
+                  ? 'text-slate-500 hover:text-purple-400 hover:bg-purple-900/20 hover:border-purple-900/40'
+                  : 'text-slate-500 hover:text-purple-700 hover:bg-purple-50 hover:border-purple-200'
+              }`}
+            >
+              <FileText className="w-4 h-4 text-purple-600" />
+            </button>
+          </div>
+        </aside>
+
+        {/* ══ MAIN CONTENT AREA ══════════════════════════════════════════════ */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+          {/* ── HEADER BAR ───────────────────────────────────────────────── */}
+          <header className={`h-14 flex items-center px-5 gap-5 shrink-0 transition-colors ${
+            isDark
+              ? 'bg-[#0B0B1E] border-b border-purple-900/25'
+              : 'bg-white border-b border-slate-200/90 shadow-xs'
+          }`}>
+
+            {/* Logo & Brand: Sh4d0w_Br0k3rs */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center shadow-md border border-purple-400/30">
+                <Shield className="w-4 h-4 text-white" />
               </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`font-black text-base tracking-wide font-mono ${
+                    isDark ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    Sh4d0w_Br0k3rs
+                  </span>
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-purple-600/10 border border-purple-500/40 rounded text-purple-600 dark:text-purple-300 font-mono">
+                    AI-SOC
+                  </span>
+                </div>
+                <div className={`text-[9px] font-mono leading-none ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                  AI-Assisted Cyber Threat Hunting Platform
+                </div>
+              </div>
+            </div>
+
+            {/* Scenario Selector */}
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ml-4 transition ${
+              isDark
+                ? 'bg-white/[0.04] border border-white/[0.08]'
+                : 'bg-slate-100 border border-slate-200 hover:bg-slate-200/50'
+            }`}>
+              <span className={`text-[10px] font-mono shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'}`}>
+                Scenario:
+              </span>
               <select
                 value={activeScenarioId}
-                onChange={(e) => setActiveScenarioId(e.target.value)}
-                className="w-full bg-transparent text-xs text-gray-200 font-semibold focus:outline-none cursor-pointer truncate"
+                onChange={e => setActiveScenarioId(e.target.value)}
+                className={`bg-transparent text-xs font-semibold focus:outline-none cursor-pointer truncate max-w-[210px] ${
+                  isDark ? 'text-purple-300' : 'text-purple-900'
+                }`}
               >
                 {scenarios.map(s => (
-                  <option key={s.scenario_id} value={s.scenario_id} className="bg-gray-900 text-gray-200">
+                  <option key={s.scenario_id} value={s.scenario_id} className={isDark ? 'bg-[#0D0D1E] text-white' : 'bg-white text-slate-900'}>
                     {s.name}
                   </option>
                 ))}
+                <option value="SCN-APT29-GHOST" className={isDark ? 'bg-[#0D0D1E] text-white' : 'bg-white text-slate-900'}>
+                  Operation CloudSteal (Multi-Domain)
+                </option>
               </select>
+              <ChevronDown className={`w-3 h-3 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-500'}`} />
             </div>
 
-            <button
-              onClick={handleRefreshBackend}
-              className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono transition ${
-                backendStatus.online
-                  ? 'bg-emerald-950/30 border-emerald-500/25 text-emerald-400 hover:bg-emerald-900/30'
-                  : 'bg-indigo-950/30 border-indigo-500/25 text-indigo-300 hover:bg-indigo-900/30'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{backendStatus.online ? 'REST API: Live (8000)' : 'In-Memory Engine'}</span>
-              <RefreshCw className="w-3 h-3 ml-auto shrink-0 opacity-50 hover:opacity-100" />
-            </button>
-          </div>
-        )}
-      </aside>
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          RIGHT SIDE: Top Header + Main Content
-         ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-
-        {/* ─── TOP HEADER BAR ────────────────────────────────────────────── */}
-        <header className={`h-16 ${isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200 shadow-sm'} border-b flex items-center px-6 gap-4 shrink-0 z-20 transition-colors`}>
-          
-          {/* Page Title & Breadcrumb */}
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className={`text-base font-bold tracking-wide truncate font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {PAGE_TITLES[activeTab] || 'Command Center'}
-            </h1>
-          </div>
-
-          {/* Connectors Status Ribbon */}
-          <div className={`hidden xl:flex items-center gap-2 border px-3 py-1.5 rounded-lg text-[10px] font-mono ${
-            isDark ? 'bg-[#0b0f17] border-[#1f293d] text-gray-400' : 'bg-slate-100 border-slate-200 text-slate-600'
-          }`}>
-            <span className="flex items-center gap-1 text-emerald-500 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Wazuh
-            </span>
-            <span className="text-gray-400">&bull;</span>
-            <span className="flex items-center gap-1 text-emerald-500 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sentinel
-            </span>
-            <span className="text-gray-400">&bull;</span>
-            <span className="flex items-center gap-1 text-emerald-500 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Splunk
-            </span>
-            <span className="text-gray-400">&bull;</span>
-            <span className="flex items-center gap-1 text-cyan-500 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> Sysmon
-            </span>
-          </div>
-
-          {/* Global IOC Search */}
-          <div className="flex-1 max-w-md mx-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search IOCs, hashes, IPs, hosts, TTPs..."
-                className={`w-full pl-9 pr-4 py-1.5 border rounded-lg text-xs font-mono transition ${
-                  isDark
-                    ? 'bg-[#0b0f17] border-[#1f293d] text-gray-200 placeholder-gray-600 focus:border-blue-500/50'
-                    : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-500'
-                }`}
-              />
+            {/* IOC Search */}
+            <div className="flex-1 max-w-sm mx-2">
+              <div className="relative">
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search IOCs, hashes, IPs, TTPs..."
+                  className={`w-full pl-8 pr-4 py-1.5 rounded-lg text-xs font-mono transition focus:outline-none ${
+                    isDark
+                      ? 'bg-white/[0.04] border border-white/[0.07] text-slate-300 placeholder-slate-600 focus:border-purple-500/50'
+                      : 'bg-slate-100 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-purple-500'
+                  }`}
+                />
+              </div>
             </div>
-          </div>
 
-          {/* DEFCON + Alert Badges + User */}
-          <div className="flex items-center gap-3 shrink-0">
-            <DefconBadge />
-
-            {/* Severity Mini Counts */}
-            <div className="hidden lg:flex items-center gap-1.5">
+            {/* Right side controls */}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              {/* Severity badges */}
               {severityCounts.critical > 0 && (
-                <span className="px-2 py-1 rounded bg-red-950/50 border border-red-500/30 text-red-400 text-[10px] font-mono font-bold">
+                <span className="px-2 py-1 rounded-md bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-500/40 text-red-700 dark:text-red-400 text-[10px] font-mono font-bold animate-pulse">
                   {severityCounts.critical} CRIT
                 </span>
               )}
               {severityCounts.high > 0 && (
-                <span className="px-2 py-1 rounded bg-orange-950/50 border border-orange-500/30 text-orange-400 text-[10px] font-mono font-bold">
+                <span className="px-2 py-1 rounded-md bg-amber-100 dark:bg-orange-900/40 border border-amber-300 dark:border-orange-500/40 text-amber-800 dark:text-orange-400 text-[10px] font-mono font-bold">
                   {severityCounts.high} HIGH
                 </span>
               )}
+
+              {/* Ingest Telemetry button */}
+              <button
+                onClick={() => setShowIngestModal(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  isDark
+                    ? 'bg-purple-600/20 border border-purple-500/40 hover:bg-purple-600/35 text-purple-300'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs font-semibold'
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5" />
+                Ingest Telemetry
+              </button>
+
+              {/* Correlating indicator */}
+              <button
+                onClick={() => loadScenarioData(activeScenarioId)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-semibold transition ${
+                  correlating
+                    ? isDark
+                      ? 'bg-cyan-900/30 border-cyan-500/40 text-cyan-300 animate-pulse'
+                      : 'bg-cyan-50 border-cyan-300 text-cyan-700 animate-pulse'
+                    : isDark
+                      ? 'bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-slate-200'
+                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200/60'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${correlating ? 'bg-cyan-500 animate-ping' : 'bg-slate-400'}`} />
+                {correlating ? 'Correlating...' : 'Idle'}
+              </button>
+
+              {/* Avatar */}
+              <div className={`flex items-center gap-2 pl-2 ml-1 ${isDark ? 'border-l border-purple-900/30' : 'border-l border-slate-200'}`}>
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center text-white text-[10px] font-bold border border-purple-400/30 shadow-xs">
+                  NH
+                </div>
+                <div className="hidden md:block text-left">
+                  <div className={`text-xs font-bold leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Noor Hassan</div>
+                  <div className={`text-[9px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>L2 Sr. Hunter</div>
+                </div>
+              </div>
             </div>
+          </header>
 
-            {/* Quick Actions */}
-            <button
-              onClick={() => setShowIngestModal(true)}
-              className={`p-2 rounded-lg transition ${
-                isDark ? 'hover:bg-gray-800/60 text-gray-400 hover:text-cyan-400' : 'hover:bg-slate-100 text-slate-500 hover:text-cyan-600'
-              }`}
-              title="Ingest Telemetry Log"
-            >
-              <Flame className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowReportModal(true)}
-              className={`p-2 rounded-lg transition ${
-                isDark ? 'hover:bg-gray-800/60 text-gray-400 hover:text-blue-400' : 'hover:bg-slate-100 text-slate-500 hover:text-blue-600'
-              }`}
-              title="Export Incident Dossier"
-            >
-              <FileText className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowLimitationsModal(true)}
-              className={`p-2 rounded-lg transition ${
-                isDark ? 'hover:bg-gray-800/60 text-gray-400 hover:text-amber-400' : 'hover:bg-slate-100 text-slate-500 hover:text-amber-600'
-              }`}
-              title="AI Limitations & Governance"
-            >
-              <AlertTriangle className="w-4 h-4" />
-            </button>
+          {/* ── TAB NAVIGATION BAR ───────────────────────────────────────── */}
+          <nav className={`flex px-4 overflow-x-auto shrink-0 scrollbar-none transition-colors ${
+            isDark
+              ? 'bg-[#0B0B1E] border-b border-purple-900/20'
+              : 'bg-white border-b border-slate-200 shadow-xs'
+          }`}>
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${
+                  activeTab === tab.id
+                    ? isDark
+                      ? 'border-purple-500 text-purple-300 bg-purple-500/5'
+                      : 'border-purple-600 text-purple-700 bg-purple-50/80 font-bold'
+                    : isDark
+                      ? 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                }`}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
+                {tab.dot && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse" />
+                )}
+              </button>
+            ))}
+          </nav>
 
-            {/* Dark / Light Theme Changer Button */}
-            <button
-              onClick={toggleTheme}
-              className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 font-mono text-xs font-semibold transition shadow-sm ${
+          {/* ── MAIN CONTENT VIEWPORT ────────────────────────────────────── */}
+          <main className={`flex-1 overflow-y-auto transition-colors ${
+            isDark ? 'bg-[#07070F]' : 'bg-slate-100/70'
+          }`}>
+
+            {/* Toast */}
+            {containmentAlert && (
+              <div className={`fixed top-24 right-6 z-50 rounded-xl p-4 shadow-2xl flex items-center gap-3 max-w-sm animate-pulse border-2 ${
                 isDark
-                  ? 'bg-gray-800/90 border-gray-700 text-amber-300 hover:bg-gray-700 hover:border-gray-600'
-                  : 'bg-slate-100 border-slate-300 text-indigo-700 hover:bg-slate-200 hover:border-slate-400'
-              }`}
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {isDark ? (
-                <>
-                  <Sun className="w-4 h-4 text-amber-400" />
-                  <span className="hidden sm:inline">Light</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="w-4 h-4 text-indigo-600" />
-                  <span className="hidden sm:inline">Dark</span>
-                </>
-              )}
-            </button>
-
-            {/* Analyst Avatar with RBAC Role */}
-            <div className={`flex items-center gap-2 pl-2 border-l ${isDark ? 'border-[#1f293d]' : 'border-slate-200'}`}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-xs font-bold border border-blue-400/30 shadow-md">
-                SM
+                  ? 'bg-[#0F0F25] border-emerald-500/60 shadow-emerald-900/40'
+                  : 'bg-white border-emerald-500 shadow-emerald-500/20'
+              }`}>
+                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className={`text-xs font-bold uppercase font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{containmentAlert.title}</div>
+                  <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{containmentAlert.text}</div>
+                </div>
               </div>
-              <div className="hidden md:block text-left">
-                <div className={`text-xs font-bold leading-tight ${isDark ? 'text-gray-200' : 'text-slate-800'}`}>Sandeep M.</div>
-                <div className="text-[9px] font-mono text-gray-500">L2 Sr. Hunter</div>
-              </div>
-            </div>
-          </div>
-        </header>
+            )}
 
-        {/* ─── MAIN CONTENT VIEWPORT ─────────────────────────────────────── */}
-        <main className={`flex-1 overflow-y-auto p-6 transition-colors ${isDark ? 'bg-[#0b0f17]' : 'bg-[#f8fafc]'}`}>
-          {/* Floating Toast Notification */}
-          {containmentAlert && (
-            <div className="fixed top-20 right-6 z-50 bg-[#111827] border-2 border-emerald-500/60 rounded-xl p-4 shadow-2xl flex items-center gap-3 max-w-md animate-pulse">
-              <div className="p-2 rounded-lg bg-emerald-950 text-emerald-400">
-                <CheckCircle2 className="w-5 h-5" />
+            {loading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500">
+                <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-mono font-medium">Correlating telemetry across data sources...</span>
               </div>
-              <div>
-                <div className="text-xs font-bold text-white uppercase font-mono">{containmentAlert.title}</div>
-                <div className="text-xs text-gray-400">{containmentAlert.text}</div>
-              </div>
-            </div>
-          )}
+            ) : (
+              <div className="p-6 max-w-[1800px] mx-auto">
 
-          {/* Loading Indicator */}
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm font-mono">Querying security datastore & correlation engine...</span>
-            </div>
-          ) : (
-            <div className="max-w-[1600px] mx-auto">
-
-              {/* ══ 1. COMMAND CENTER / OVERVIEW ══ */}
-              {activeTab === 'dashboard' && (
-                <div className="space-y-6">
-                  {/* Status Bar */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { label: 'Correlated Telemetry', value: events.length, icon: Activity, color: 'text-blue-400', border: 'border-blue-500/20', bg: 'bg-blue-950/20' },
-                      { label: 'Critical Alert Count', value: severityCounts.critical, icon: AlertTriangle, color: 'text-red-400', border: 'border-red-500/20', bg: 'bg-red-950/20' },
-                      { label: 'High Threat Events', value: severityCounts.high, icon: Zap, color: 'text-orange-400', border: 'border-orange-500/20', bg: 'bg-orange-950/20' },
-                      { label: 'Kill Chain Coverage', value: '86%', icon: Crosshair, color: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-950/20' },
-                    ].map(s => (
-                      <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-4 flex items-center gap-4`}>
-                        <div className={`p-2.5 rounded-lg bg-[#111827] border border-[#1f293d]`}>
-                          <s.icon className={`w-5 h-5 ${s.color}`} />
+                {/* ══ OVERVIEW & GLOBE ══════════════════════════════════════ */}
+                {activeTab === 'globe' && (
+                  <div className="space-y-5">
+                    {/* Top KPI bar */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { label: 'Correlated Events', value: events.length.toLocaleString(), icon: Activity, color: '#0284C7', trend: '+14%' },
+                        { label: 'Critical Alerts', value: severityCounts.critical, icon: AlertTriangle, color: '#DC2626' },
+                        { label: 'High Severity', value: severityCounts.high, icon: Zap, color: '#D97706' },
+                        { label: 'Kill Chain Coverage', value: '86%', icon: Crosshair, color: '#059669', trend: '+3%' },
+                      ].map(stat => (
+                        <div key={stat.label} className={`rounded-xl p-4 flex items-center gap-4 transition group ${
+                          isDark
+                            ? 'bg-white/[0.03] border border-white/[0.06] hover:border-purple-500/20'
+                            : 'bg-white border border-slate-200/90 shadow-xs hover:shadow-md hover:border-purple-300'
+                        }`}>
+                          <div className={`p-2.5 rounded-lg transition ${
+                            isDark
+                              ? 'bg-white/[0.04] border border-white/[0.05] group-hover:border-purple-500/20'
+                              : 'bg-slate-50 border border-slate-100 group-hover:bg-purple-50'
+                          }`}>
+                            <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
+                          </div>
+                          <div>
+                            {stat.trend && (
+                              <div className="flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5">
+                                <ArrowUpRight className="w-2.5 h-2.5" />{stat.trend}
+                              </div>
+                            )}
+                            <div className="text-xl font-mono font-bold" style={{ color: stat.color }}>{stat.value}</div>
+                            <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>{stat.label}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className={`text-2xl font-mono font-bold ${s.color}`}>{s.value}</div>
-                          <div className="text-[11px] text-gray-500 font-medium">{s.label}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Row 1: Attack Path Topology (Full Width in a Straight Line) */}
-                  <div className={`border rounded-xl p-5 shadow-xl transition-colors ${
-                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
-                  }`}>
-                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} theme={theme} />
-                  </div>
-
-                  {/* Row 2: Incident Overview & Correlation Stats (Directly Below, Full Width in a Straight Line) */}
-                  <div className={`border rounded-xl p-5 shadow-xl transition-colors ${
-                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
-                  }`}>
-                    <OverviewStats correlationData={correlationData} scenario={activeScenario} events={events} />
-                  </div>
-
-                  {/* Telemetry Log Stream */}
-                  <div className={`border rounded-xl p-5 transition-colors ${
-                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
-                  }`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <Radio className="w-4 h-4 text-cyan-400" />
-                        <h2 className="text-sm font-semibold text-gray-200">Live Ingested Telemetry Feed</h2>
-                      </div>
-                      <span className="text-[10px] font-mono text-gray-500">{events.length} security events</span>
-                    </div>
-                    <div className="space-y-1 max-h-60 overflow-y-auto">
-                      {events.slice(0, 8).map((evt) => (
-                        <button
-                          key={evt.event_uuid}
-                          onClick={() => handleSelectEvent(evt.event_uuid)}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800/40 text-left transition group"
-                        >
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${
-                            evt.severity === 'critical' ? 'bg-red-500' :
-                            evt.severity === 'high' ? 'bg-orange-500' :
-                            evt.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
-                          }`} />
-                          <span className="text-[11px] font-mono text-gray-500 w-32 shrink-0 truncate">{new Date(evt.timestamp).toLocaleTimeString()}</span>
-                          <span className={`text-[10px] font-mono font-bold w-16 shrink-0 uppercase ${
-                            evt.severity === 'critical' ? 'text-red-400' :
-                            evt.severity === 'high' ? 'text-orange-400' :
-                            evt.severity === 'medium' ? 'text-amber-400' : 'text-blue-400'
-                          }`}>{evt.severity}</span>
-                          <span className="text-xs text-gray-300 truncate flex-1 font-mono">{evt.event_type}</span>
-                          <span className="text-[10px] text-gray-500 font-mono truncate max-w-32">{evt.source_host || evt.source_ip || ''}</span>
-                          <Eye className="w-3.5 h-3.5 text-gray-600 group-hover:text-blue-400 shrink-0 transition" />
-                        </button>
                       ))}
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {/* ══ 2. EVIDENCE VAULT & RELATIONAL GRAPH ══ */}
-              {activeTab === 'vault' && (
-                <EvidenceVault 
-                  events={events} 
-                  onSelectEvent={handleSelectEvent} 
-                  selectedEventUuid={selectedEventUuid} 
-                />
-              )}
+                    {/* Main Globe + Stats */}
+                    <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
 
-              {/* ══ 3. THREAT HUNTING WORKSPACE ══ */}
-              {activeTab === 'hunting' && (
-                <ThreatHuntingWorkspace 
-                  events={events} 
-                  scenario={activeScenario} 
-                  onSelectEvent={handleSelectEvent} 
-                />
-              )}
+                      {/* Left: Telemetry Stats */}
+                      <div className="xl:col-span-2 space-y-4">
+                        <div className={`rounded-2xl p-5 ${
+                          isDark
+                            ? 'bg-white/[0.03] border border-white/[0.06]'
+                            : 'bg-white border border-slate-200/90 shadow-xs'
+                        }`}>
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-5">
+                            <div>
+                              <div className={`text-[10px] font-mono tracking-widest uppercase ${
+                                isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'
+                              }`}>
+                                General statistics
+                              </div>
+                              <button className={`text-[10px] font-mono flex items-center gap-1 mt-0.5 transition ${
+                                isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-700 hover:text-cyan-800 font-semibold'
+                              }`}>
+                                ALL TELEMETRY DETAIL <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className={`flex items-center gap-1.5 text-[10px] font-mono rounded-lg px-2.5 py-1 ${
+                              isDark
+                                ? 'text-emerald-400 bg-emerald-900/20 border border-emerald-900/40'
+                                : 'text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold'
+                            }`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              LIVE
+                            </div>
+                          </div>
 
-              {/* ══ 4. ALERT TRIAGE DISCOVERY ══ */}
-              {activeTab === 'discover' && (
-                <KibanaDiscover 
-                  events={filteredEvents} 
-                  onSelectEvent={handleSelectEvent} 
-                  selectedEventUuid={selectedEventUuid} 
-                />
-              )}
+                          {/* Big number */}
+                          <div className="mb-1">
+                            <div className={`text-5xl font-black font-mono tracking-tighter ${
+                              isDark ? 'text-white' : 'text-slate-900'
+                            }`}>
+                              {(events.length * 487 + 4951485).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className={`text-[11px] font-mono uppercase tracking-widest mb-5 ${
+                            isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'
+                          }`}>
+                            CURRENT TELEMETRY ACTIVITY
+                          </div>
 
-              {/* ══ 5. ATTACK PATH GRAPH ══ */}
-              {activeTab === 'graph' && (
-                <div className="space-y-6">
-                  <div className={`border rounded-xl p-5 transition-colors ${
-                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <GitCommit className="w-4 h-4 text-indigo-400" />
-                      <h2 className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-slate-800'}`}>Relational Evidence Graph Topology</h2>
-                      <span className="text-[10px] font-mono text-gray-500">Entity-linked IOC path</span>
+                          {/* Breakdown */}
+                          <div className="space-y-1">
+                            {telemetryBreakdown.map(t => (
+                              <TelemetryBar key={t.label} {...t} isDark={isDark} />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Metric cards row */}
+                        <div className="flex gap-3">
+                          <MetricCard
+                            label="Telemetry Velocity"
+                            value="18.4 ms"
+                            sub="Avg correlation latency"
+                            trend="+14%"
+                            color="#0284C7"
+                            isDark={isDark}
+                          />
+                          <MetricCard
+                            label="Incident Trend"
+                            value="92,980"
+                            sub="Compared to baseline"
+                            color="#DB2777"
+                            isDark={isDark}
+                          />
+                        </div>
+                        <div className="flex gap-3">
+                          <MetricCard
+                            label="Total Coverage"
+                            value="53,430,001"
+                            sub="Verified threat vectors"
+                            color="#7C3AED"
+                            isDark={isDark}
+                          />
+                          <div className={`rounded-xl p-4 flex-1 min-w-0 flex flex-col items-center justify-center ${
+                            isDark
+                              ? 'bg-white/[0.03] border border-white/[0.06]'
+                              : 'bg-white border border-slate-200/90 shadow-xs'
+                          }`}>
+                            <div className={`text-[10px] uppercase font-mono tracking-widest mb-2 ${
+                              isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'
+                            }`}>
+                              Coverage
+                            </div>
+                            <div className="relative w-16 h-16">
+                              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                <circle cx="18" cy="18" r="15" fill="none" stroke={isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0"} strokeWidth="3" />
+                                <circle cx="18" cy="18" r="15" fill="none" stroke="#7C3AED" strokeWidth="3"
+                                  strokeDasharray={`${23 * 94.2 / 100} 94.2`} strokeLinecap="round" />
+                              </svg>
+                              <div className={`absolute inset-0 flex items-center justify-center text-sm font-bold font-mono ${
+                                isDark ? 'text-purple-300' : 'text-purple-700'
+                              }`}>
+                                23%
+                              </div>
+                            </div>
+                            <div className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-1 font-mono font-semibold">● Verified</div>
+                          </div>
+                        </div>
+
+                        {/* Active scenario info */}
+                        {correlationData && (
+                          <div className={`rounded-2xl p-4 border ${
+                            isDark
+                              ? 'bg-gradient-to-br from-purple-900/20 to-indigo-900/10 border-purple-500/20'
+                              : 'bg-gradient-to-br from-purple-50 to-indigo-50/50 border-purple-200/90 shadow-xs'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-red-600 text-white shadow-xs">
+                                THREAT LEVEL: CRITICAL
+                              </span>
+                              <span className={`text-[10px] font-mono ${isDark ? 'text-purple-400' : 'text-purple-700 font-semibold'}`}>
+                                ID: {activeScenarioId}
+                              </span>
+                            </div>
+                            <div className={`text-sm font-bold mb-1 leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                              {correlationData.incident_title || activeScenario.name}
+                            </div>
+                            <div className={`text-[11px] mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {correlationData.correlation_summary?.substring(0, 120) || 'Multi-domain intrusion correlation active...'}
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-mono">
+                              <span className={isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'}>Confidence</span>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-20 rounded-full h-1.5 ${isDark ? 'bg-white/5' : 'bg-slate-200'}`}>
+                                  <div className="h-1.5 rounded-full bg-gradient-to-r from-purple-600 to-cyan-500"
+                                    style={{ width: `${(correlationData.confidence_score || 0.98) * 100}%` }} />
+                                </div>
+                                <span className={`font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
+                                  {Math.round((correlationData.confidence_score || 0.98) * 100)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Globe Card */}
+                      <div className={`xl:col-span-3 rounded-2xl flex items-center justify-center p-4 min-h-[480px] relative overflow-hidden ${
+                        isDark
+                          ? 'bg-white/[0.02] border border-white/[0.05]'
+                          : 'bg-white border border-slate-200/90 shadow-xs'
+                      }`}>
+                        {/* Background glow */}
+                        <div className={`absolute inset-0 pointer-events-none ${
+                          isDark
+                            ? 'bg-gradient-radial from-purple-900/10 via-transparent to-transparent'
+                            : 'bg-gradient-radial from-purple-100/40 via-transparent to-transparent'
+                        }`} />
+                        <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl pointer-events-none ${
+                          isDark ? 'bg-purple-600/5' : 'bg-purple-200/30'
+                        }`} />
+                        <div className={`absolute bottom-0 left-0 w-48 h-48 rounded-full blur-3xl pointer-events-none ${
+                          isDark ? 'bg-cyan-600/5' : 'bg-cyan-200/30'
+                        }`} />
+
+                        <div className="relative z-10 flex flex-col items-center">
+                          <div className={`text-[10px] font-mono uppercase tracking-widest mb-3 ${
+                            isDark ? 'text-slate-500' : 'text-slate-500 font-semibold'
+                          }`}>
+                            Global Threat Origin Map
+                          </div>
+                          <GlobeVisualization width={360} height={360} events={events} theme={theme} />
+                          <div className="flex items-center gap-6 mt-3 text-[10px] font-mono">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#FF1493]" />
+                              <span className={isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}>Attack Origin</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                              <span className={isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}>Exfil Target</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#00D4FF]" />
+                              <span className={isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}>Pivot Node</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} theme={theme} />
+
+                    {/* Live telemetry feed */}
+                    <div className={`rounded-2xl p-5 ${
+                      isDark
+                        ? 'bg-white/[0.02] border border-white/[0.05]'
+                        : 'bg-white border border-slate-200/90 shadow-xs'
+                    }`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Radio className="w-4 h-4 text-cyan-600 dark:text-cyan-400 animate-pulse" />
+                          <h2 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                            Live Correlated Event Stream
+                          </h2>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-semibold ${
+                            isDark
+                              ? 'bg-cyan-900/30 border border-cyan-900/50 text-cyan-400'
+                              : 'bg-cyan-50 border border-cyan-200 text-cyan-700'
+                          }`}>
+                            REAL-TIME
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>
+                          {events.length} security events correlated
+                        </span>
+                      </div>
+                      <div className="space-y-1 max-h-52 overflow-y-auto">
+                        {events.slice(0, 10).map(evt => (
+                          <button
+                            key={evt.event_uuid}
+                            onClick={() => handleSelectEvent(evt.event_uuid)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition group ${
+                              isDark
+                                ? 'hover:bg-white/[0.04]'
+                                : 'hover:bg-slate-50 border-b border-slate-100/70'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${
+                              evt.severity === 'critical' ? 'bg-red-500 animate-pulse' :
+                              evt.severity === 'high' ? 'bg-orange-500' :
+                              evt.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
+                            }`} />
+                            <span className={`text-[10px] font-mono w-32 shrink-0 truncate ${
+                              isDark ? 'text-slate-500' : 'text-slate-500'
+                            }`}>
+                              {new Date(evt.timestamp).toLocaleTimeString()}
+                            </span>
+                            <span className={`text-[9px] font-mono font-bold w-14 shrink-0 uppercase ${
+                              evt.severity === 'critical' ? 'text-red-500 dark:text-red-400' :
+                              evt.severity === 'high' ? 'text-orange-500 dark:text-orange-400' :
+                              evt.severity === 'medium' ? 'text-amber-500 dark:text-amber-400' : 'text-blue-500 dark:text-blue-400'
+                            }`}>
+                              {evt.severity}
+                            </span>
+                            <span className={`text-xs truncate flex-1 font-mono font-medium ${
+                              isDark ? 'text-slate-300' : 'text-slate-800'
+                            }`}>
+                              {evt.event_type}
+                            </span>
+                            <span className={`text-[10px] font-mono truncate max-w-[120px] ${
+                              isDark ? 'text-slate-500' : 'text-slate-500'
+                            }`}>
+                              {evt.source_host || evt.source_ip || ''}
+                            </span>
+                            <Eye className={`w-3.5 h-3.5 shrink-0 transition ${
+                              isDark
+                                ? 'text-slate-700 group-hover:text-purple-400'
+                                : 'text-slate-400 group-hover:text-purple-600'
+                            }`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div className={`border rounded-xl p-5 transition-colors ${
-                    isDark ? 'bg-[#111827] border-[#1f293d]' : 'bg-white border-slate-200'
+                )}
+
+                {/* ══ ATTACK PATH VISUALIZER ════════════════════════════════ */}
+                {activeTab === 'graph' && (
+                  <div className="space-y-5">
+                    <div className={`rounded-2xl p-5 ${
+                      isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                    }`}>
+                      <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} theme={theme} />
+                    </div>
+                    <div className={`rounded-2xl p-5 ${
+                      isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                    }`}>
+                      <TerminalConsole onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
+                    </div>
+                  </div>
+                )}
+
+                {/* ══ CIM TELEMETRY ════════════════════════════════════════ */}
+                {activeTab === 'discover' && (
+                  <div className={`rounded-2xl overflow-hidden ${
+                    isDark ? '' : 'shadow-xs border border-slate-200/90'
                   }`}>
-                    <TerminalConsole onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
+                    <KibanaDiscover events={filteredEvents} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* ══ 6. ATTACK SIMULATION TERMINAL (Offensive Arsenal from Noor-Hassan-B/hackathone) ══ */}
-              {activeTab === 'terminal' && (
-                <OffensiveTerminal onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
-              )}
+                {/* ══ EVIDENCE VAULT ════════════════════════════════════════ */}
+                {activeTab === 'vault' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <EvidenceVault events={events} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
+                  </div>
+                )}
 
-              {/* ══ 7. TIMELINE STREAM ══ */}
-              {activeTab === 'timeline' && (
-                <TimelineView events={filteredEvents} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
-              )}
+                {/* ══ THREAT HUNTING ════════════════════════════════════════ */}
+                {activeTab === 'hunting' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <ThreatHuntingWorkspace events={events} scenario={activeScenario} onSelectEvent={handleSelectEvent} />
+                  </div>
+                )}
 
-              {/* ══ 8. MITRE ATT&CK MATRIX ══ */}
-              {activeTab === 'mitre' && (
-                <MitreMatrixView mitreData={mitreData} onSelectEvent={handleSelectEvent} />
-              )}
+                {/* ══ ATTACK SEQUENCES / TERMINAL ══════════════════════════ */}
+                {activeTab === 'terminal' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <OffensiveTerminal onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
+                  </div>
+                )}
 
-              {/* ══ 9. AI COPILOT ══ */}
-              {activeTab === 'ai' && (
-                <AIAssistantPanel
-                  aiSummary={aiSummary} querySuggestions={querySuggestions}
-                  onAskCustomQuery={(q) => api.askAiCustomQuery(q, activeScenarioId)}
-                  onSelectEvent={handleSelectEvent}
-                  onOpenLimitations={() => setShowLimitationsModal(true)}
-                />
-              )}
+                {/* ══ TIMELINE ════════════════════════════════════════════ */}
+                {activeTab === 'timeline' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <TimelineView events={filteredEvents} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
+                  </div>
+                )}
 
-              {/* ══ 10. DETECTION STUDIO ══ */}
-              {activeTab === 'detection' && <DetectionStudio />}
+                {/* ══ MITRE MATRIX ════════════════════════════════════════ */}
+                {activeTab === 'mitre' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <MitreMatrixView mitreData={mitreData} onSelectEvent={handleSelectEvent} />
+                  </div>
+                )}
 
-              {/* ══ 11. RESPONSE GATING ══ */}
-              {activeTab === 'gating' && <HitlGatingPanel />}
+                {/* ══ AI COPILOT ══════════════════════════════════════════ */}
+                {activeTab === 'ai' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <AIAssistantPanel
+                      aiSummary={aiSummary} querySuggestions={querySuggestions}
+                      onAskCustomQuery={(q) => api.askAiCustomQuery(q, activeScenarioId)}
+                      onSelectEvent={handleSelectEvent}
+                      onOpenLimitations={() => setShowLimitationsModal(true)}
+                    />
+                  </div>
+                )}
 
-              {/* ══ 12. AUDIT LEDGER ══ */}
-              {activeTab === 'audit' && <AuditLedgerView />}
+                {/* ══ DETECTION STUDIO ════════════════════════════════════ */}
+                {activeTab === 'detection' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <DetectionStudio />
+                  </div>
+                )}
 
+                {/* ══ RESPONSE GATING ════════════════════════════════════ */}
+                {activeTab === 'gating' && (
+                  <div className={`rounded-2xl p-5 ${
+                    isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                  }`}>
+                    <HitlGatingPanel />
+                  </div>
+                )}
+
+                {/* ══ INVESTIGATION REPORTS / AUDIT LEDGER ═══════════════ */}
+                {activeTab === 'audit' && (
+                  <div className="space-y-5">
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setShowReportModal(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold shadow-xs transition"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Export Full Incident Report
+                      </button>
+                      <button
+                        onClick={() => setShowLimitationsModal(true)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                          isDark
+                            ? 'bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] text-slate-300'
+                            : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 shadow-xs'
+                        }`}
+                      >
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        AI Limitations
+                      </button>
+                    </div>
+                    <div className={`rounded-2xl p-5 ${
+                      isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
+                    }`}>
+                      <AuditLedgerView />
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+          </main>
+
+          {/* ── FOOTER ───────────────────────────────────────────────────── */}
+          <footer className={`h-7 flex items-center px-5 gap-4 text-[9px] font-mono shrink-0 transition-colors ${
+            isDark
+              ? 'bg-black/40 border-t border-purple-900/20 text-slate-500'
+              : 'bg-white border-t border-slate-200/90 text-slate-600 shadow-xs'
+          }`}>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Sh4d0w_Br0k3rs Platform — Operational</span>
             </div>
-          )}
-        </main>
-
-        {/* ─── FOOTER STATUS BAR ─────────────────────────────────────────── */}
-        <footer className="h-8 bg-[#111827] border-t border-[#1f293d] flex items-center px-4 gap-4 text-[10px] font-mono text-gray-500 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span>SOCForge Platform — Operational</span>
-          </div>
-          <span className="text-gray-600">|</span>
-          <span>REST API: http://localhost:8000</span>
-          <span className="text-gray-600">|</span>
-          <span>Web UI: http://localhost:3000</span>
-          <span className="ml-auto text-gray-600">Evidence-Driven SOC Platform v2.5 &bull; Sandeep Mothukuri Arch</span>
-        </footer>
+            <span className={isDark ? 'text-purple-900' : 'text-slate-300'}>|</span>
+            <span>REST API: http://localhost:8000</span>
+            <span className={isDark ? 'text-purple-900' : 'text-slate-300'}>|</span>
+            <span>Web UI: http://localhost:3000</span>
+            <span className="ml-auto font-medium">Evidence-Driven SOC Platform v3.0 • Noor Hassan Arch</span>
+          </footer>
+        </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          OVERLAYS / MODALS / DRAWERS
-         ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ══ MODALS / OVERLAYS ═════════════════════════════════════════════ */}
       {selectedEvent && (
         <EvidenceDrawer
           event={selectedEvent}
@@ -764,7 +978,6 @@ export default function App() {
           }}
         />
       )}
-
       {showReportModal && <ReportModal scenarioId={activeScenarioId} onClose={() => setShowReportModal(false)} />}
       {showLimitationsModal && <AiLimitationsModal onClose={() => setShowLimitationsModal(false)} />}
       {showIngestModal && (
