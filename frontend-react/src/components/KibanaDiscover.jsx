@@ -20,7 +20,14 @@ import {
   Cloud
 } from 'lucide-react';
 
-export default function KibanaDiscover({ events, onSelectEvent, selectedEventUuid }) {
+export default function KibanaDiscover({ 
+  events, 
+  allEvents = [], 
+  isResetToZero = false, 
+  onRestoreStats, 
+  onSelectEvent, 
+  selectedEventUuid 
+}) {
   const [expandedRow, setExpandedRow] = useState(null);
   const [selectedFields, setSelectedFields] = useState(['domain', 'event_type', 'source_host', 'user_id', 'mitre_technique_id']);
   const [copiedUuid, setCopiedUuid] = useState(null);
@@ -79,16 +86,29 @@ export default function KibanaDiscover({ events, onSelectEvent, selectedEventUui
       
       {/* Elastic / Kibana Discover Sub-header */}
       <div className="p-3 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="font-bold text-slate-200 uppercase font-mono tracking-wide flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded bg-cyan-400" />
             Elastic Discover / Log Explorer
           </span>
           <span className="text-slate-400 font-mono text-[11px]">
-            Showing <strong>{events.length}</strong> hits
+            Showing <strong>{events.length}</strong> {isResetToZero ? 'live attack logs' : 'hits'}
           </span>
+          {isResetToZero && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              Fresh Capture Mode
+            </span>
+          )}
         </div>
-        <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+        <div className="text-[11px] text-slate-400 font-mono flex items-center gap-3">
+          {isResetToZero && onRestoreStats && (
+            <button
+              onClick={onRestoreStats}
+              className="text-cyan-400 hover:text-cyan-300 underline font-semibold flex items-center gap-1"
+            >
+              Restore All Historical Logs ({allEvents.length || 542}) &rarr;
+            </button>
+          )}
           <span>Index: <strong className="text-slate-300">security-events-*</strong></span>
           <span>&bull;</span>
           <span>Timefield: <strong className="text-slate-300">@timestamp</strong></span>
@@ -144,7 +164,26 @@ export default function KibanaDiscover({ events, onSelectEvent, selectedEventUui
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {events.map((evt) => {
+              {events.length === 0 ? (
+                <tr>
+                  <td colSpan={selectedFields.length + 3} className="p-8 text-center text-slate-400 font-mono text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <ShieldAlert className="w-8 h-8 text-slate-500" />
+                      <span className="font-semibold text-slate-300">No logs found matching current view</span>
+                      {isResetToZero ? (
+                        <span className="text-[11px] text-slate-500">
+                          Baseline was reset to 0. Execute an attack in &ldquo;Attack Sequences&rdquo; to see new logs stream here, or click &ldquo;Restore All Historical Logs&rdquo; above.
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-500">
+                          Try adjusting your search query or selecting a different scenario.
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                events.map((evt) => {
                 const isExpanded = expandedRow === evt.event_uuid;
                 const isSelected = selectedEventUuid === evt.event_uuid;
 
@@ -265,7 +304,7 @@ export default function KibanaDiscover({ events, onSelectEvent, selectedEventUui
                     )}
                   </React.Fragment>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>

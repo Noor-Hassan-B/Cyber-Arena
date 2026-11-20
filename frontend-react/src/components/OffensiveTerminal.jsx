@@ -301,7 +301,7 @@ export const OFFENSIVE_SCENARIOS = [
   }
 ];
 
-export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId, events = [], onSelectEvent, theme = 'dark' }) {
+export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId, events = [], onSelectEvent, onOpenCimLogs, theme = 'dark' }) {
   const [inputCmd, setInputCmd] = useState('');
   const [history, setHistory] = useState([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -831,9 +831,20 @@ export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId,
                 Live Telemetry Logs ({events.length})
               </button>
             </div>
-            <span className="text-[10px] text-gray-500 font-mono hidden sm:inline">
-              {rightPanelTab === 'arsenal' ? '1-Click Execution' : 'Real-Time EDR'}
-            </span>
+            <div className="flex items-center gap-2">
+              {onOpenCimLogs && (
+                <button
+                  onClick={onOpenCimLogs}
+                  title="Open full CIM Telemetry Logs tab"
+                  className="text-[10px] font-mono font-bold text-cyan-400 hover:text-cyan-300 underline flex items-center gap-1"
+                >
+                  CIM Telemetry (All Logs) &rarr;
+                </button>
+              )}
+              <span className="text-[10px] text-gray-500 font-mono hidden sm:inline">
+                {rightPanelTab === 'arsenal' ? '1-Click Execution' : 'Real-Time EDR'}
+              </span>
+            </div>
           </div>
 
           {/* Tab 1: Arsenal Items List */}

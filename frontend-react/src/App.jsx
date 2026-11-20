@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import OverviewStats from './components/OverviewStats';
 import AttackPathGraph from './components/AttackPathGraph';
 import TimelineView from './components/TimelineView';
@@ -26,14 +26,14 @@ import {
   Activity, Eye, Settings, ChevronLeft, ChevronRight,
   Globe, Crosshair, Wifi, Share2, Lock, Fingerprint,
   Sun, Moon, Network, Cpu, BarChart2, Radar, Target,
-  ArrowUpRight, TrendingUp, ArrowRight, Satellite, RotateCcw
+  ArrowUpRight, TrendingUp, ArrowRight, Satellite, RotateCcw, Trash2
 } from 'lucide-react';
 
 // ─── Sh4d0w_Br0k3rs Top Nav Tabs ─────────────────────────────────────────────
 const TABS = [
   { id: 'globe',     icon: Globe,       label: 'Overview & Globe' },
   { id: 'graph',     icon: Network,     label: 'Attack Path Visualizer', dot: true },
-  { id: 'discover',  icon: Radar,       label: 'CIM Telemetry' },
+  { id: 'discover',  icon: Radar,       label: 'CIM Telemetry (All Logs)' },
   { id: 'mitre',     icon: Grid,        label: 'MITRE Matrix' },
   { id: 'terminal',  icon: Terminal,    label: 'Attack Sequences' },
   { id: 'ai',        icon: Sparkles,    label: 'AI Copilot' },
@@ -45,7 +45,7 @@ const TABS = [
 const SIDEBAR_ICONS = [
   { id: 'globe',    Icon: Globe,         tooltip: 'Overview & Globe' },
   { id: 'graph',    Icon: Network,       tooltip: 'Attack Path' },
-  { id: 'discover', Icon: BarChart2,     tooltip: 'CIM Telemetry' },
+  { id: 'discover', Icon: BarChart2,     tooltip: 'CIM Telemetry (All Logs)' },
   { id: 'mitre',    Icon: Grid,          tooltip: 'MITRE Matrix' },
   { id: 'terminal', Icon: Zap,           tooltip: 'Attack Sequences' },
   { id: 'ai',       Icon: Sparkles,      tooltip: 'AI Copilot' },
@@ -114,13 +114,19 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [correlating, setCorrelating] = useState(false);
   const [isResetToZero, setIsResetToZero] = useState(false);
+  const [resetTimestamp, setResetTimestamp] = useState(null);
 
   const handleToggleResetStats = () => {
     setIsResetToZero(prev => {
       const next = !prev;
+      if (next) {
+        setResetTimestamp(Date.now());
+      } else {
+        setResetTimestamp(null);
+      }
       setContainmentAlert({
-        title: next ? 'Statistics Reset to Zero' : 'Statistics Restored',
-        text: next ? 'All telemetry counters and rates reset to 0.' : 'Live scenario telemetry and baseline restored.'
+        title: next ? 'Counters Reset to Zero (0)' : 'Scenario Baseline Restored',
+        text: next ? 'All metrics reset to 0. Any new attack executed will start counting up and stream live.' : 'Full scenario baseline restored.'
       });
       setTimeout(() => setContainmentAlert(null), 4000);
       return next;
@@ -201,6 +207,7 @@ export default function App() {
         scenario_id: activeScenarioId,
         event_uuid: newEventUuid,
         timestamp: actionData.timestamp || new Date().toISOString(),
+        is_live_attack: true,
         ...actionData
       };
 
@@ -215,7 +222,7 @@ export default function App() {
 
       setContainmentAlert({
         title: 'Adversary Telemetry Ingested (Live)',
-        text: `${eventWithScenario.mitre_technique_id || 'T1059'} — ${eventWithScenario.mitre_technique_name || eventWithScenario.domain?.toUpperCase() || 'ENDPOINT'}`
+        text: `${eventWithScenario.mitre_technique_id || 'T1059'} — ${eventWithScenario.mitre_technique_name || eventWithScenario.domain?.toUpperCase() || 'ENDPOINT'} (Logged to CIM Telemetry & Live Stream)`
       });
       setTimeout(() => setContainmentAlert(null), 4000);
     } else if (actionData.type === 'containment') {
@@ -224,11 +231,24 @@ export default function App() {
     }
   };
 
-  const filteredEvents = events.filter(evt => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return `${evt.event_uuid} ${evt.domain} ${evt.event_type} ${evt.severity} ${evt.source_host || ''} ${evt.dest_host || ''} ${evt.user_id || ''} ${evt.mitre_technique_id || ''}`.toLowerCase().includes(q);
-  });
+  // Active events: when in "Reset to 0" mode, start counting fresh from 0!
+  // Any event that occurred after resetTimestamp is included.
+  const activeEvents = useMemo(() => {
+    if (!isResetToZero) return events;
+    if (!resetTimestamp) return [];
+    return events.filter(e => {
+      const t = new Date(e.timestamp).getTime();
+      return !isNaN(t) && t >= resetTimestamp;
+    });
+  }, [events, isResetToZero, resetTimestamp]);
+
+  const filteredEvents = useMemo(() => {
+    return activeEvents.filter(evt => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return `${evt.event_uuid} ${evt.domain} ${evt.event_type} ${evt.severity} ${evt.source_host || ''} ${evt.dest_host || ''} ${evt.user_id || ''} ${evt.mitre_technique_id || ''}`.toLowerCase().includes(q);
+    });
+  }, [activeEvents, searchQuery]);
 
   const activeScenario = scenarios.find(s => s.scenario_id === activeScenarioId) || {
     scenario_id: activeScenarioId, name: 'Operation CloudSteal (Multi-Domain)',
@@ -236,17 +256,37 @@ export default function App() {
   };
 
   const severityCounts = {
-    critical: isResetToZero ? 0 : events.filter(e => e.severity === 'critical').length,
-    high: isResetToZero ? 0 : events.filter(e => e.severity === 'high').length,
+    critical: activeEvents.filter(e => e.severity === 'critical').length,
+    high: activeEvents.filter(e => e.severity === 'high').length,
   };
 
   // Telemetry breakdown stats
-  const totalEvents = isResetToZero ? 0 : Math.max(events.length, 1);
+  const totalEvents = Math.max(activeEvents.length, isResetToZero ? 0 : 1);
   const telemetryBreakdown = [
-    { label: 'Endpoint Telemetry',    value: isResetToZero ? 0 : (events.filter(e => e.domain === 'endpoint').length || Math.round(totalEvents * 0.55)), pct: isResetToZero ? 0 : 55, color: '#0284C7' },
-    { label: 'Network Flows (Zeek)',  value: isResetToZero ? 0 : Math.round(totalEvents * 0.25), pct: isResetToZero ? 0 : 25, color: '#7C3AED' },
-    { label: 'Cloud Infrastructure',  value: isResetToZero ? 0 : (events.filter(e => e.domain === 'cloud').length || Math.round(totalEvents * 0.15)), pct: isResetToZero ? 0 : 15, color: '#DB2777' },
-    { label: 'Active Directory Auth', value: isResetToZero ? 0 : Math.round(totalEvents * 0.10), pct: isResetToZero ? 0 : 10, color: '#059669' },
+    { 
+      label: 'Endpoint Telemetry',    
+      value: activeEvents.filter(e => e.domain === 'endpoint').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.55)), 
+      pct: totalEvents > 0 ? Math.round(((activeEvents.filter(e => e.domain === 'endpoint').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.55))) / totalEvents) * 100) : 0, 
+      color: '#0284C7' 
+    },
+    { 
+      label: 'Network Flows (Zeek)',  
+      value: activeEvents.filter(e => e.domain === 'network').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.25)), 
+      pct: totalEvents > 0 ? Math.round(((activeEvents.filter(e => e.domain === 'network').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.25))) / totalEvents) * 100) : 0, 
+      color: '#7C3AED' 
+    },
+    { 
+      label: 'Cloud Infrastructure',  
+      value: activeEvents.filter(e => e.domain === 'cloud').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.15)), 
+      pct: totalEvents > 0 ? Math.round(((activeEvents.filter(e => e.domain === 'cloud').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.15))) / totalEvents) * 100) : 0, 
+      color: '#DB2777' 
+    },
+    { 
+      label: 'Active Directory Auth', 
+      value: activeEvents.filter(e => e.domain === 'auth').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.10)), 
+      pct: totalEvents > 0 ? Math.round(((activeEvents.filter(e => e.domain === 'auth').length || (isResetToZero ? 0 : Math.round(totalEvents * 0.10))) / totalEvents) * 100) : 0, 
+      color: '#059669' 
+    },
   ];
 
   return (
@@ -474,6 +514,24 @@ export default function App() {
                 {isResetToZero ? 'Restore Stats' : 'Reset to 0'}
               </button>
 
+              {isResetToZero && activeEvents.length > 0 && (
+                <button
+                  onClick={() => {
+                    setResetTimestamp(Date.now());
+                    setContainmentAlert({
+                      title: 'Live Telemetry Cleared to 0',
+                      text: 'Attack counters reset to 0.'
+                    });
+                    setTimeout(() => setContainmentAlert(null), 4000);
+                  }}
+                  title="Clear live attack counter back to 0"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Clear to 0
+                </button>
+              )}
+
               {/* Ingest Telemetry button */}
               <button
                 onClick={() => setShowIngestModal(true)}
@@ -582,10 +640,32 @@ export default function App() {
                     {/* Top KPI bar */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
-                        { label: 'Correlated Events', value: isResetToZero ? '0' : events.length.toLocaleString(), icon: Activity, color: '#0284C7', trend: isResetToZero ? null : '+14%' },
-                        { label: 'Critical Alerts', value: isResetToZero ? 0 : severityCounts.critical, icon: AlertTriangle, color: '#DC2626' },
-                        { label: 'High Severity', value: isResetToZero ? 0 : severityCounts.high, icon: Zap, color: '#D97706' },
-                        { label: 'Kill Chain Coverage', value: isResetToZero ? '0%' : '86%', icon: Crosshair, color: '#059669', trend: isResetToZero ? null : '+3%' },
+                        { 
+                          label: 'Correlated Events', 
+                          value: isResetToZero ? activeEvents.length.toLocaleString() : events.length.toLocaleString(), 
+                          icon: Activity, 
+                          color: '#0284C7', 
+                          trend: isResetToZero ? (activeEvents.length > 0 ? `+${activeEvents.length}` : null) : '+14%' 
+                        },
+                        { 
+                          label: 'Critical Alerts', 
+                          value: severityCounts.critical, 
+                          icon: AlertTriangle, 
+                          color: '#DC2626' 
+                        },
+                        { 
+                          label: 'High Severity', 
+                          value: severityCounts.high, 
+                          icon: Zap, 
+                          color: '#D97706' 
+                        },
+                        { 
+                          label: 'Kill Chain Coverage', 
+                          value: isResetToZero ? (activeEvents.length > 0 ? `${Math.min(100, activeEvents.length * 20)}%` : '0%') : '86%', 
+                          icon: Crosshair, 
+                          color: '#059669', 
+                          trend: isResetToZero ? null : '+3%' 
+                        },
                       ].map(stat => (
                         <div key={stat.label} className={`rounded-xl p-4 flex items-center gap-4 transition group ${
                           isDark
@@ -650,12 +730,16 @@ export default function App() {
                                 {isResetToZero ? 'Restore' : 'Reset to 0'}
                               </button>
                               <div className={`flex items-center gap-1.5 text-[10px] font-mono rounded-lg px-2.5 py-1 ${
-                                isDark
-                                  ? 'text-emerald-400 bg-emerald-900/20 border border-emerald-900/40'
-                                  : 'text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold'
+                                isResetToZero
+                                  ? activeEvents.length > 0
+                                    ? 'text-purple-600 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 font-semibold'
+                                    : 'text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 font-semibold'
+                                  : isDark
+                                    ? 'text-emerald-400 bg-emerald-900/20 border border-emerald-900/40'
+                                    : 'text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold'
                               }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${isResetToZero ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
-                                {isResetToZero ? 'PAUSED' : 'LIVE'}
+                                <span className={`w-1.5 h-1.5 rounded-full ${isResetToZero ? (activeEvents.length > 0 ? 'bg-purple-500 animate-pulse' : 'bg-amber-500') : 'bg-emerald-500 animate-pulse'}`} />
+                                {isResetToZero ? (activeEvents.length > 0 ? `LIVE (${activeEvents.length} ATK)` : 'CLEARED (0)') : 'LIVE'}
                               </div>
                             </div>
                           </div>
@@ -665,7 +749,7 @@ export default function App() {
                             <div className={`text-5xl font-black font-mono tracking-tighter ${
                               isDark ? 'text-white' : 'text-slate-900'
                             }`}>
-                              {isResetToZero ? '0' : (events.length * 487 + 4951485).toLocaleString()}
+                              {isResetToZero ? (activeEvents.length > 0 ? activeEvents.length.toLocaleString() : '0') : (events.length * 487 + 4951485).toLocaleString()}
                             </div>
                           </div>
                           <div className={`text-[11px] font-mono uppercase tracking-widest mb-5 ${
@@ -686,15 +770,15 @@ export default function App() {
                         <div className="flex gap-3">
                           <MetricCard
                             label="Telemetry Velocity"
-                            value={isResetToZero ? "0.0 ms" : "18.4 ms"}
+                            value={isResetToZero ? (activeEvents.length > 0 ? "1.2 ms" : "0.0 ms") : "18.4 ms"}
                             sub="Avg correlation latency"
-                            trend={isResetToZero ? null : "+14%"}
+                            trend={isResetToZero ? (activeEvents.length > 0 ? `+${activeEvents.length}` : null) : "+14%"}
                             color="#0284C7"
                             isDark={isDark}
                           />
                           <MetricCard
                             label="Incident Trend"
-                            value={isResetToZero ? "0" : "92,980"}
+                            value={isResetToZero ? activeEvents.length.toLocaleString() : "92,980"}
                             sub="Compared to baseline"
                             color="#DB2777"
                             isDark={isDark}
@@ -703,7 +787,7 @@ export default function App() {
                         <div className="flex gap-3">
                           <MetricCard
                             label="Total Coverage"
-                            value={isResetToZero ? "0" : "53,430,001"}
+                            value={isResetToZero ? (activeEvents.length > 0 ? `${Math.min(100, activeEvents.length * 15)}%` : "0%") : "53,430,001"}
                             sub="Verified threat vectors"
                             color="#7C3AED"
                             isDark={isDark}
@@ -722,12 +806,12 @@ export default function App() {
                               <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                                 <circle cx="18" cy="18" r="15" fill="none" stroke={isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0"} strokeWidth="3" />
                                 <circle cx="18" cy="18" r="15" fill="none" stroke="#7C3AED" strokeWidth="3"
-                                  strokeDasharray={isResetToZero ? "0 94.2" : `${23 * 94.2 / 100} 94.2`} strokeLinecap="round" />
+                                  strokeDasharray={isResetToZero ? (activeEvents.length > 0 ? `${Math.min(100, activeEvents.length * 20) * 94.2 / 100} 94.2` : "0 94.2") : `${23 * 94.2 / 100} 94.2`} strokeLinecap="round" />
                               </svg>
                               <div className={`absolute inset-0 flex items-center justify-center text-sm font-bold font-mono ${
                                 isDark ? 'text-purple-300' : 'text-purple-700'
                               }`}>
-                                {isResetToZero ? '0%' : '23%'}
+                                {isResetToZero ? (activeEvents.length > 0 ? `${Math.min(100, activeEvents.length * 20)}%` : '0%') : '23%'}
                               </div>
                             </div>
                             <div className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-1 font-mono font-semibold">● Verified</div>
@@ -835,21 +919,29 @@ export default function App() {
                             REAL-TIME
                           </span>
                         </div>
-                        <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>
-                          {isResetToZero ? '0' : events.length} security events correlated
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setActiveTab('discover')}
+                            className="text-[11px] font-mono text-purple-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-bold"
+                          >
+                            Open in CIM Telemetry (All Logs) &rarr;
+                          </button>
+                          <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>
+                            {activeEvents.length} security events correlated
+                          </span>
+                        </div>
                       </div>
                       <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                        {isResetToZero ? (
+                        {isResetToZero && activeEvents.length === 0 ? (
                           <div className="py-8 text-center text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
                               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             </div>
                             <span className="font-semibold text-slate-700 dark:text-slate-300">All Statistics and Telemetry Cleared to 0</span>
-                            <span className="text-[11px] text-slate-500">Click &ldquo;Restore Stats&rdquo; in the header or statistics card to reload live telemetry.</span>
+                            <span className="text-[11px] text-slate-500">Go to the &ldquo;Attack Sequences&rdquo; tab to launch attacks, and live telemetry will stream here starting from 0.</span>
                           </div>
                         ) : (
-                          events.slice(0, 40).map(evt => {
+                          activeEvents.slice(0, 40).map(evt => {
                             const isLiveAttack = evt.event_uuid?.startsWith('EVT-ATK') || evt.event_uuid?.startsWith('EVT-PBK') || evt.event_uuid?.startsWith('EVT-CLI') || evt.event_uuid?.startsWith('EVT-ING');
                             return (
                               <button
@@ -927,12 +1019,19 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ══ CIM TELEMETRY ════════════════════════════════════════ */}
+                {/* ══ CIM TELEMETRY (ALL LOGS) ════════════════════════════ */}
                 {activeTab === 'discover' && (
                   <div className={`rounded-2xl overflow-hidden ${
                     isDark ? '' : 'shadow-xs border border-slate-200/90'
                   }`}>
-                    <KibanaDiscover events={filteredEvents} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} />
+                    <KibanaDiscover
+                      events={filteredEvents}
+                      allEvents={events}
+                      isResetToZero={isResetToZero}
+                      onRestoreStats={handleToggleResetStats}
+                      onSelectEvent={handleSelectEvent}
+                      selectedEventUuid={selectedEventUuid}
+                    />
                   </div>
                 )}
 
@@ -962,8 +1061,10 @@ export default function App() {
                     <OffensiveTerminal
                       onCommandExecuted={handleTerminalCommand}
                       activeScenarioId={activeScenarioId}
-                      events={events}
+                      events={activeEvents}
+                      allEvents={events}
                       onSelectEvent={handleSelectEvent}
+                      onOpenCimLogs={() => setActiveTab('discover')}
                       theme={theme}
                     />
                   </div>
