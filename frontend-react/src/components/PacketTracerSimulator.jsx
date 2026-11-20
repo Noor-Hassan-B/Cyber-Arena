@@ -297,13 +297,16 @@ export const SIMULATION_PDUS = [
   }
 ];
 
-export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' }) {
+export default function PacketTracerSimulator({ onSelectEvent, activeSimulation, theme = 'dark' }) {
   const [activeStepIdx, setActiveStepIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, 3x
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [showPduInspector, setShowPduInspector] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [packetProgress, setPacketProgress] = useState(0.5);
+  const [liveSimulationBanner, setLiveSimulationBanner] = useState(null);
+  const animFrameRef = useRef(null);
 
   const activePdu = SIMULATION_PDUS[activeStepIdx] || SIMULATION_PDUS[0];
   const isDark = theme === 'dark';
@@ -317,7 +320,6 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
         setActiveStepIdx(prev => {
           if (prev >= SIMULATION_PDUS.length - 1) {
             setIsPlaying(false);
-            setShowReportModal(true); // Open detailed report automatically on completion
             return prev;
           }
           return prev + 1;
@@ -326,6 +328,64 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
     }
     return () => clearInterval(timer);
   }, [isPlaying, playbackSpeed]);
+
+  // Traveling animation for PDU envelope along the wire
+  useEffect(() => {
+    let start = null;
+    const duration = Math.max(500, 1600 / playbackSpeed);
+
+    const animatePacket = (timestamp) => {
+      if (!start) start = timestamp;
+      const elapsed = timestamp - start;
+      const progress = Math.min(1, elapsed / duration);
+      setPacketProgress(progress);
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(animatePacket);
+      }
+    };
+
+    setPacketProgress(0.05);
+    animFrameRef.current = requestAnimationFrame(animatePacket);
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [activeStepIdx, playbackSpeed]);
+
+  // Handle incoming activeSimulation from TerminalConsole
+  useEffect(() => {
+    if (!activeSimulation) return;
+    const targetStep = Math.min(SIMULATION_PDUS.length - 1, Math.max(0, (activeSimulation.step || 7) - 1));
+    setActiveStepIdx(targetStep);
+    setLiveSimulationBanner({
+      title: activeSimulation.event?.mitre_technique_name || 'Adversary Command Injected',
+      technique: activeSimulation.event?.mitre_technique_id || 'T1059',
+      command: activeSimulation.event?.command_line || 'Custom Injected Command',
+      source: activeSimulation.event?.source_host || '10.42.0.105',
+      dest: activeSimulation.event?.dest_host || 'Target Enclave',
+      timestamp: activeSimulation.timestamp
+    });
+
+    let start = null;
+    const duration = 1600;
+    const animatePacket = (timestamp) => {
+      if (!start) start = timestamp;
+      const elapsed = timestamp - start;
+      const progress = Math.min(1, elapsed / duration);
+      setPacketProgress(progress);
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(animatePacket);
+      }
+    };
+    setPacketProgress(0.05);
+    animFrameRef.current = requestAnimationFrame(animatePacket);
+
+    const bannerTimer = setTimeout(() => {
+      setLiveSimulationBanner(null);
+    }, 10000);
+
+    return () => clearTimeout(bannerTimer);
+  }, [activeSimulation]);
 
   // Devices mapped by ID
   const deviceMap = useMemo(() => {
@@ -337,14 +397,14 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
   const srcDev = deviceMap[activePdu.srcDev];
   const dstDev = deviceMap[activePdu.dstDev];
 
-  // Animated packet position (interpolated halfway or at target)
+  // Animated packet position (interpolated along the cable wire)
   const packetPos = useMemo(() => {
     if (!srcDev || !dstDev) return { x: 400, y: 200 };
     return {
-      x: (srcDev.x + dstDev.x) / 2,
-      y: (srcDev.y + dstDev.y) / 2
+      x: srcDev.x + (dstDev.x - srcDev.x) * packetProgress,
+      y: srcDev.y + (dstDev.y - srcDev.y) * packetProgress
     };
-  }, [srcDev, dstDev]);
+  }, [srcDev, dstDev, packetProgress]);
 
   const handleStepForward = () => {
     if (activeStepIdx < SIMULATION_PDUS.length - 1) {
@@ -540,6 +600,42 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
           <rect width="100%" height="100%" fill="url(#cisco-grid)" />
         </svg>
 
+        {/* Live Simulation Trigger HUD Banner */}
+        {liveSimulationBanner && (
+          <div className="absolute top-3 left-4 right-4 z-40 p-3 rounded-xl bg-[#080D1A]/95 border-2 border-red-500 text-white shadow-2xl flex items-center justify-between gap-3 animate-fadeIn backdrop-blur-md">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-600 text-white font-bold">
+                    LIVE SIMULATION ACTIVE
+                  </span>
+                  <span className="text-xs font-mono font-bold text-red-300 truncate">
+                    [{liveSimulationBanner.technique}] {liveSimulationBanner.title}
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono text-slate-300 truncate mt-0.5">
+                  Flow: <span className="text-cyan-400 font-bold">{srcDev?.name}</span> &rarr; <span className="text-red-400 font-bold">{dstDev?.name}</span> ({activePdu.protocol}) &bull; Cmd: <span className="text-slate-400 font-mono">{liveSimulationBanner.command}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowPduInspector(true)}
+                className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-mono font-bold transition flex items-center gap-1 shadow-xs"
+              >
+                Inspect OSI Layers &rarr;
+              </button>
+              <button
+                onClick={() => setLiveSimulationBanner(null)}
+                className="p-1 rounded text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Cables / Physical Links */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           {CISCO_LINKS.map(link => {
@@ -566,6 +662,20 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
                   strokeDasharray={link.type === 'fiber' ? '5,4' : 'none'}
                   className="transition-all duration-300"
                 />
+
+                {/* Active Simulated Laser Beam */}
+                {isLinkInActivePdu && srcDev && (
+                  <line
+                    x1={srcDev.x}
+                    y1={srcDev.y}
+                    x2={packetPos.x}
+                    y2={packetPos.y}
+                    stroke="#EF4444"
+                    strokeWidth={4.5}
+                    strokeLinecap="round"
+                    className="animate-pulse"
+                  />
+                )}
 
                 {/* Port Link Lights (Green/Red LED lights like Cisco hardware) */}
                 <circle
@@ -627,6 +737,7 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
         {CISCO_DEVICES.map(dev => {
           const isSelected = selectedDevice?.id === dev.id;
           const isDevInTransit = activePdu.srcDev === dev.id || activePdu.dstDev === dev.id;
+          const isTargetReached = packetProgress > 0.75 && activePdu.dstDev === dev.id;
 
           return (
             <div
@@ -640,6 +751,8 @@ export default function PacketTracerSimulator({ onSelectEvent, theme = 'dark' })
               className={`absolute z-20 cursor-pointer flex flex-col items-center p-2 rounded-xl transition-all duration-300 ${
                 isSelected
                   ? 'ring-2 ring-blue-500 scale-105'
+                  : isTargetReached
+                  ? 'ring-4 ring-red-500 scale-110 shadow-2xl shadow-red-500/50 bg-red-950/40'
                   : isDevInTransit
                   ? 'ring-2 ring-red-500/80 scale-105'
                   : 'hover:scale-105'

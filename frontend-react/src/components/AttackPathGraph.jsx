@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import PacketTracerSimulator from './PacketTracerSimulator';
 
-export default function AttackPathGraph({ graphData, onSelectEvent, selectedEventUuid, theme = 'dark' }) {
+export default function AttackPathGraph({ graphData, onSelectEvent, selectedEventUuid, activeSimulation, theme = 'dark' }) {
   const [activeStep, setActiveStep] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hoveredNode, setHoveredNode] = useState(null);
@@ -181,7 +181,7 @@ export default function AttackPathGraph({ graphData, onSelectEvent, selectedEven
 
       {/* ── 1. Cisco Packet Tracer Mode (Primary / Default) ─────────────────── */}
       {viewMode === 'packet-tracer' && (
-        <PacketTracerSimulator onSelectEvent={onSelectEvent} theme={theme} />
+        <PacketTracerSimulator onSelectEvent={onSelectEvent} activeSimulation={activeSimulation} theme={theme} />
       )}
 
       {/* ── 2. Linear Kill Chain Stages View ─────────────────────────────────── */}

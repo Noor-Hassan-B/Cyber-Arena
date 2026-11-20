@@ -115,6 +115,7 @@ export default function App() {
   const [correlating, setCorrelating] = useState(false);
   const [isResetToZero, setIsResetToZero] = useState(false);
   const [resetTimestamp, setResetTimestamp] = useState(null);
+  const [activeSimulation, setActiveSimulation] = useState(null);
 
   const handleToggleResetStats = () => {
     setIsResetToZero(prev => {
@@ -219,6 +220,14 @@ export default function App() {
 
       // Re-correlate silently in background (keeps UI & Kali terminal fully intact)
       await loadScenarioData(activeScenarioId, true);
+
+      if (actionData.is_simulation) {
+        setActiveSimulation({
+          event: eventWithScenario,
+          step: actionData.simulation_step || 4,
+          timestamp: Date.now()
+        });
+      }
 
       setContainmentAlert({
         title: 'Adversary Telemetry Ingested (Live)',
@@ -1006,15 +1015,28 @@ export default function App() {
                 {/* ══ ATTACK PATH VISUALIZER ════════════════════════════════ */}
                 {activeTab === 'graph' && (
                   <div className="space-y-5">
-                    <div className={`rounded-2xl p-5 ${
+                    <div id="cisco-canvas-container" className={`rounded-2xl p-5 ${
                       isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
                     }`}>
-                      <AttackPathGraph graphData={graphData} onSelectEvent={handleSelectEvent} selectedEventUuid={selectedEventUuid} theme={theme} />
+                      <AttackPathGraph 
+                        graphData={graphData} 
+                        activeSimulation={activeSimulation}
+                        onSelectEvent={handleSelectEvent} 
+                        selectedEventUuid={selectedEventUuid} 
+                        theme={theme} 
+                      />
                     </div>
                     <div className={`rounded-2xl p-5 ${
                       isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
                     }`}>
-                      <TerminalConsole onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
+                      <TerminalConsole 
+                        onCommandExecuted={handleTerminalCommand} 
+                        activeScenarioId={activeScenarioId} 
+                        onScrollToCanvas={() => {
+                          const el = document.getElementById('cisco-canvas-container');
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                      />
                     </div>
                   </div>
                 )}

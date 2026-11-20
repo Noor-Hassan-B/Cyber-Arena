@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   CornerDownLeft,
   Copy,
-  ChevronRight
+  ChevronRight,
+  Network
 } from 'lucide-react';
 
 export const COMMON_ATTACK_COMMANDS = [
@@ -98,8 +99,9 @@ export const COMMON_ATTACK_COMMANDS = [
   }
 ];
 
-export default function TerminalConsole({ onCommandExecuted, activeScenarioId }) {
+export default function TerminalConsole({ onCommandExecuted, activeScenarioId, onScrollToCanvas }) {
   const [inputVal, setInputVal] = useState('');
+  const [simulatingAtkId, setSimulatingAtkId] = useState(null);
   const [history, setHistory] = useState([
     { type: 'system', text: 'AegisHunt Interactive Threat Hunting Console [Version 2.4.0]' },
     { type: 'system', text: 'Type "help" for available commands, or click any pre-made adversary attack below.' },
@@ -193,39 +195,62 @@ export default function TerminalConsole({ onCommandExecuted, activeScenarioId })
         type: 'output',
         text: `[*] Querying telemetry for: ${filter}\n    Found 4 events matching behavioral criteria. Correlation links verified.`
       });
-    } else if (base === 'simulate' || base === 'exec' || cmd.includes('powershell') || cmd.includes('rundll32') || cmd.includes('wmic') || cmd.includes('vssadmin') || cmd.includes('aws') || cmd.includes('mega') || cmd.includes('xmrig')) {
+    } else if (base === 'simulate' || base === 'exec' || cmd.includes('powershell') || cmd.includes('rundll32') || cmd.includes('wmic') || cmd.includes('vssadmin') || cmd.includes('aws') || cmd.includes('mega') || cmd.includes('xmrig') || cmd.includes('nmap') || cmd.includes('hydra') || cmd.includes('sqlmap')) {
       // Find matching preset or create dynamic event
-      const preset = COMMON_ATTACK_COMMANDS.find(c => c.id === args[0] || cmd.includes(c.technique) || cmd.includes(c.category.toLowerCase())) || {
+      const preset = COMMON_ATTACK_COMMANDS.find(c => 
+        c.command.trim() === cmd ||
+        c.id === args[0] ||
+        (cmd.includes('aws') && c.id === 'atk-aws-sts') ||
+        (cmd.includes('powershell') && c.id === 'atk-ps-enc') ||
+        (cmd.includes('lsass') || cmd.includes('rundll32') && c.id === 'atk-lsass-dump') ||
+        ((cmd.includes('kerberoast') || cmd.includes('klist') || cmd.includes('1433')) && c.id === 'atk-kerberoast') ||
+        (cmd.includes('wmic') && c.id === 'atk-remote-wmi') ||
+        ((cmd.includes('vssadmin') || cmd.includes('shadow')) && c.id === 'atk-shadow-purge') ||
+        (cmd.includes('mega') && c.id === 'atk-mega-exfil') ||
+        (cmd.includes('xmrig') && c.id === 'atk-crypto-miner') ||
+        cmd.includes(c.technique)
+      ) || {
         id: 'custom-' + Date.now(),
-        title: 'Custom Injected Telemetry',
-        technique: 'T1059',
-        category: 'Execution',
+        title: cmd.includes('aws') ? 'Cloud IAM STS AssumeRole Abuse' : 'Custom Injected Telemetry',
+        technique: cmd.includes('aws') ? 'T1078.004' : 'T1059',
+        category: cmd.includes('aws') ? 'Privilege Escalation' : 'Execution',
         command: cmd,
         domain: cmd.includes('aws') ? 'cloud' : cmd.includes('mega') ? 'network' : 'endpoint',
         severity: 'high'
       };
+
+      let simulationStep = 4;
+      if (preset.id === 'atk-ps-enc') simulationStep = 4;
+      else if (preset.id === 'atk-lsass-dump' || preset.id === 'atk-kerberoast') simulationStep = 5;
+      else if (preset.id === 'atk-remote-wmi' || preset.id === 'atk-shadow-purge') simulationStep = 6;
+      else if (preset.id === 'atk-aws-sts' || preset.id === 'atk-mega-exfil' || preset.id === 'atk-crypto-miner') simulationStep = 7;
+      else if (preset.domain === 'cloud') simulationStep = 7;
+      else if (preset.domain === 'network') simulationStep = 1;
 
       const eventUuid = 'EVT-CLI-' + Math.random().toString(36).substring(2, 7).toUpperCase();
       const pid = Math.floor(Math.random() * 8000) + 1000;
 
       newLines.push({
         type: 'critical',
-        text: `[!] ADVERSARY BEHAVIOR DETECTED: [${preset.technique}] ${preset.title}\n    PID: ${pid} | Domain: ${preset.domain.toUpperCase()} | Severity: ${preset.severity.toUpperCase()}\n    Raw Command: ${cmd}\n    Ingested as Event: ${eventUuid}\n    Correlation Pipeline: Updating Attack Graph & Kill-Chain Matrix...`
+        text: `[!] ADVERSARY BEHAVIOR DETECTED: [${preset.technique}] ${preset.title}\n    PID: ${pid} | Domain: ${preset.domain.toUpperCase()} | Severity: ${preset.severity.toUpperCase()}\n    Raw Command: ${cmd}\n    Ingested as Event: ${eventUuid}\n    [+] PACKET TRACER SIMULATION TRIGGERED (Step ${simulationStep}/7).\n    Transmitting PDU frame across Cisco network topology above!\n    (Click "View Simulation Canvas Above ↑" or scroll up to view)`
       });
 
       if (onCommandExecuted) {
         onCommandExecuted({
           type: 'event',
+          is_simulation: true,
+          simulation_step: simulationStep,
+          preset_id: preset.id,
           event_uuid: eventUuid,
           scenario_id: activeScenarioId,
-          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          timestamp: new Date().toISOString(),
           domain: preset.domain,
           event_type: 'cli_emulation',
           severity: preset.severity,
-          source_host: preset.domain === 'cloud' ? 'AWS-Console' : 'WKSTN-FIN-04',
-          dest_host: preset.domain === 'cloud' ? 'AWS-S3' : 'DC01.corp.local',
-          source_ip: '10.0.1.44',
-          dest_ip: preset.domain === 'cloud' ? '185.220.101.5' : '10.0.0.5',
+          source_host: preset.domain === 'cloud' ? 'WKSTN-FIN-04' : 'WKSTN-FIN-04',
+          dest_host: preset.domain === 'cloud' ? 'AWS-S3' : preset.id === 'atk-remote-wmi' || preset.id === 'atk-kerberoast' ? 'DC01.corp.local' : 'DC01.corp.local',
+          source_ip: '10.42.0.105',
+          dest_ip: preset.domain === 'cloud' ? '52.216.144.20' : '10.42.0.10',
           user_id: 'sarah.connor',
           process_name: cmd.split(' ')[0],
           command_line: cmd,
@@ -299,6 +324,16 @@ export default function TerminalConsole({ onCommandExecuted, activeScenarioId })
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
+          {onScrollToCanvas && (
+            <button
+              onClick={onScrollToCanvas}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 transition animate-pulse"
+              title="View live simulation on Cisco Packet Tracer network canvas above"
+            >
+              <Network className="w-3.5 h-3.5" />
+              <span>View Simulation Canvas Above &uarr;</span>
+            </button>
+          )}
           <button
             onClick={() => setHistory([])}
             className="flex items-center gap-1 px-2.5 py-1 text-xs font-mono rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition"
@@ -325,7 +360,14 @@ export default function TerminalConsole({ onCommandExecuted, activeScenarioId })
           {COMMON_ATTACK_COMMANDS.map((atk) => (
             <button
               key={atk.id}
-              onClick={() => handleExecute(atk.command)}
+              onClick={() => {
+                setSimulatingAtkId(atk.id);
+                setTimeout(() => setSimulatingAtkId(null), 3000);
+                handleExecute(atk.command);
+                if (onScrollToCanvas) {
+                  setTimeout(onScrollToCanvas, 200);
+                }
+              }}
               className="p-2.5 text-left rounded-lg bg-slate-900/90 border border-slate-800 hover:border-red-500/50 hover:bg-slate-900 hover:shadow-lg hover:shadow-red-500/10 transition group flex flex-col justify-between"
             >
               <div>
@@ -348,7 +390,15 @@ export default function TerminalConsole({ onCommandExecuted, activeScenarioId })
               <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-blue-400 font-mono">
                 <span className="text-slate-500">{atk.category}</span>
                 <span className="flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform text-red-400 font-bold">
-                  Simulate <ChevronRight className="w-3 h-3" />
+                  {simulatingAtkId === atk.id ? (
+                    <span className="text-emerald-400 font-bold animate-pulse flex items-center gap-1">
+                      Simulating... ⚡
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-0.5">
+                      Simulate <ChevronRight className="w-3 h-3" />
+                    </span>
+                  )}
                 </span>
               </div>
             </button>
