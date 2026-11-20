@@ -301,7 +301,7 @@ export const OFFENSIVE_SCENARIOS = [
   }
 ];
 
-export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId }) {
+export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId, events = [], onSelectEvent, theme = 'dark' }) {
   const [inputCmd, setInputCmd] = useState('');
   const [history, setHistory] = useState([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -316,6 +316,7 @@ export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId 
   const [simProgress, setSimProgress] = useState(0);
   const [intensity, setIntensity] = useState('normal'); // 'normal' | 'fast'
   const [copiedCmd, setCopiedCmd] = useState(null);
+  const [rightPanelTab, setRightPanelTab] = useState('arsenal'); // 'arsenal' | 'logs'
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -395,22 +396,14 @@ export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId 
         { text: `[+] Target: ${matchedArsenal.target} | MITRE: ${matchedArsenal.mitre}`, type: 'warning' }
       ]);
 
-      // Stream stdout line by line
-      for (const line of matchedArsenal.stdout) {
-        await new Promise(r => setTimeout(r, 120));
-        setTerminalLines(prev => [...prev, { text: line, type: 'output' }]);
-      }
-
-      setTerminalLines(prev => [
-        ...prev,
-        { text: `[✓] Execution successful. Real telemetry event dispatched to SOC correlation pipeline.`, type: 'success' }
-      ]);
-
-      // Fire event to parent correlation pipeline
+      // Fire event to parent correlation pipeline IMMEDIATELY so logs update in real time
       if (onCommandExecuted) {
+        const eventUuid = 'EVT-ATK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
         onCommandExecuted({
           type: 'event',
-          event_type: matchedArsenal.category.toLowerCase().replace(' ', '_'),
+          event_uuid: eventUuid,
+          scenario_id: activeScenarioId,
+          event_type: matchedArsenal.category.toLowerCase().replace(/\s+/g, '_'),
           domain: matchedArsenal.domain,
           severity: matchedArsenal.severity,
           mitre_technique_id: matchedArsenal.mitre,
@@ -418,32 +411,89 @@ export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId 
           command_line: trimmed,
           source_host: 'kali-offensive-vm',
           dest_host: matchedArsenal.target.split(' ')[0],
-          timestamp: new Date().toISOString()
+          source_ip: '10.42.0.5',
+          dest_ip: '10.42.0.10',
+          user_id: 'kali-attacker',
+          process_name: matchedArsenal.cmd.split(' ')[0],
+          timestamp: new Date().toISOString(),
+          raw_payload: {
+            tool: matchedArsenal.label,
+            command: trimmed,
+            target: matchedArsenal.target,
+            desc: matchedArsenal.desc
+          }
         });
       }
+
+      setRightPanelTab('logs');
+
+      // Stream stdout line by line
+      for (const line of matchedArsenal.stdout) {
+        await new Promise(r => setTimeout(r, 100));
+        setTerminalLines(prev => [...prev, { text: line, type: 'output' }]);
+      }
+
+      setTerminalLines(prev => [
+        ...prev,
+        { text: `[✓] Execution successful. Real telemetry event dispatched to SOC correlation pipeline.`, type: 'success' }
+      ]);
     } else {
-      // Generic execution simulation
+      // Generic command execution simulation - also generates real-time telemetry!
+      const isNet = trimmed.includes('curl') || trimmed.includes('ping') || trimmed.includes('nc') || trimmed.includes('ssh') || trimmed.includes('10.');
+      const isAuth = trimmed.includes('hydra') || trimmed.includes('login') || trimmed.includes('pass') || trimmed.includes('user') || trimmed.includes('su');
+      const isCloud = trimmed.includes('aws') || trimmed.includes('s3') || trimmed.includes('cloud') || trimmed.includes('iam');
+      const domain = isCloud ? 'cloud' : isAuth ? 'auth' : isNet ? 'network' : 'endpoint';
+      const cmdUuid = 'EVT-CMD-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      if (onCommandExecuted) {
+        onCommandExecuted({
+          type: 'event',
+          event_uuid: cmdUuid,
+          scenario_id: activeScenarioId,
+          event_type: 'cli_command_execution',
+          domain,
+          severity: 'high',
+          mitre_technique_id: 'T1059.004',
+          mitre_technique_name: 'Unix Shell Execution',
+          command_line: trimmed,
+          source_host: 'kali-offensive-vm',
+          dest_host: 'edge-target-vm (10.42.0.10)',
+          source_ip: '10.42.0.5',
+          dest_ip: '10.42.0.10',
+          user_id: 'root',
+          process_name: trimmed.split(' ')[0],
+          timestamp: new Date().toISOString(),
+          raw_payload: {
+            shell: '/bin/bash',
+            command: trimmed
+          }
+        });
+      }
+
+      setRightPanelTab('logs');
+
       setTerminalLines(prev => [
         ...prev,
         { text: `[+] Executing: ${trimmed}`, type: 'info' },
-        { text: `[+] Session established with target enclave (10.42.0.10). Process returned code 0.`, type: 'output' }
+        { text: `[+] Session established with target enclave (10.42.0.10). Ingested into SOC as ${cmdUuid}.`, type: 'output' }
       ]);
     }
   };
 
-  // Deploy complete offensive scenario playbook
+  // Deploy complete offensive scenario playbook with step-by-step real-time telemetry streaming
   const deployScenarioPlaybook = async (scenarioObj) => {
     if (simRunning) return;
     setSimRunning(true);
     setSimProgress(0);
+    setRightPanelTab('logs');
 
-    const delay = intensity === 'fast' ? 180 : 450;
+    const delay = intensity === 'fast' ? 180 : 380;
 
     setTerminalLines(prev => [
       ...prev,
       { text: `════════════════════════════════════════════════════════════════`, type: 'system' },
       { text: `[!] LAUNCHING PLAYBOOK: ${scenarioObj.title.toUpperCase()}`, type: 'warning' },
-      { text: `[*] Attacker Node: ${scenarioObj.attacker_vm} &bull; Target: ${scenarioObj.target_vm}`, type: 'info' },
+      { text: `[*] Attacker Node: ${scenarioObj.attacker_vm} • Target: ${scenarioObj.target_vm}`, type: 'info' },
       { text: `[*] Technique: ${scenarioObj.mitre} | Risk Level: ${scenarioObj.risk}/100`, type: 'info' },
       { text: `════════════════════════════════════════════════════════════════`, type: 'system' }
     ]);
@@ -453,29 +503,43 @@ export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId 
       const line = scenarioObj.commands[i];
       setTerminalLines(prev => [...prev, { text: line, type: 'output' }]);
       setSimProgress(Math.round(((i + 1) / scenarioObj.commands.length) * 100));
+
+      // Emit real-time telemetry log for each active step in the playbook!
+      if (onCommandExecuted && !line.startsWith('Scan finished') && !line.startsWith('Discovered') && !line.startsWith('[+] Attack completed')) {
+        const stepUuid = 'EVT-PBK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        const domain = scenarioObj.category.includes('Credential') ? 'auth' : scenarioObj.category.includes('Web') ? 'endpoint' : 'network';
+        onCommandExecuted({
+          type: 'event',
+          event_uuid: stepUuid,
+          scenario_id: activeScenarioId,
+          event_type: scenarioObj.category.toLowerCase().replace(/\s+/g, '_'),
+          domain,
+          severity: scenarioObj.severity,
+          mitre_technique_id: scenarioObj.mitre.split(' - ')[0],
+          mitre_technique_name: `${scenarioObj.title} (Step ${i + 1})`,
+          command_line: line,
+          source_host: scenarioObj.attacker_vm.split(' ')[0],
+          dest_host: scenarioObj.target_vm.split(' ')[0],
+          source_ip: scenarioObj.source_ip || '10.42.0.5',
+          dest_ip: '10.42.0.10',
+          user_id: 'kali-redteam',
+          process_name: scenarioObj.tool.split(' ')[0],
+          timestamp: new Date().toISOString(),
+          raw_payload: {
+            playbook: scenarioObj.title,
+            step: i + 1,
+            output: line,
+            risk: scenarioObj.risk
+          }
+        });
+      }
     }
 
     setTerminalLines(prev => [
       ...prev,
-      { text: `[✓] PLAYBOOK DEPLOYED SUCCESSFULLY. ${scenarioObj.title} telemetry ingested into SIEM.`, type: 'success' },
+      { text: `[✓] PLAYBOOK DEPLOYED SUCCESSFULLY. All steps ingested into SIEM in real time.`, type: 'success' },
       { text: `════════════════════════════════════════════════════════════════`, type: 'system' }
     ]);
-
-    // Dispatch event to correlation engine
-    if (onCommandExecuted) {
-      onCommandExecuted({
-        type: 'event',
-        event_type: scenarioObj.category.toLowerCase().replace(' ', '_'),
-        domain: scenarioObj.category.includes('Credential') ? 'auth' : scenarioObj.category.includes('Web') ? 'endpoint' : 'network',
-        severity: scenarioObj.severity,
-        mitre_technique_id: scenarioObj.mitre.split(' - ')[0],
-        mitre_technique_name: scenarioObj.title,
-        command_line: scenarioObj.commands[0],
-        source_host: scenarioObj.attacker_vm.split(' ')[0],
-        dest_host: scenarioObj.target_vm.split(' ')[0],
-        timestamp: new Date().toISOString()
-      });
-    }
 
     setSimRunning(false);
   };
@@ -739,62 +803,167 @@ export default function OffensiveTerminal({ onCommandExecuted, activeScenarioId 
           </div>
         </div>
 
-        {/* Right: Pre-Made Offensive Attack Arsenal (5 Cols) */}
+        {/* Right: Pre-Made Offensive Arsenal + Live SOC Telemetry Logs (5 Cols) */}
         <div className="lg:col-span-5 bg-[#111827] border border-[#1f293d] rounded-xl p-4 flex flex-col h-[520px] shadow-xl">
+          {/* Right Panel Tabs Header */}
           <div className="flex items-center justify-between border-b border-[#1f293d] pb-2 mb-3">
-            <span className="text-xs font-bold text-gray-300 font-mono uppercase tracking-wider flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5 text-orange-400" />
-              Pre-Made Offensive Weapons Arsenal
-            </span>
-            <span className="text-[10px] text-gray-500 font-mono">1-Click Execution</span>
-          </div>
-
-          {/* Arsenal Items List */}
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {ATTACK_ARSENAL.map(atk => (
-              <div
-                key={atk.id}
-                className="bg-[#0b0f17] border border-[#1f293d] hover:border-gray-700 rounded-lg p-3 transition space-y-2 group"
+            <div className="flex items-center gap-1.5 bg-[#0b0f17] p-1 rounded-lg border border-[#1f293d]">
+              <button
+                onClick={() => setRightPanelTab('arsenal')}
+                className={`px-3 py-1 rounded text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                  rightPanelTab === 'arsenal'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white font-mono">{atk.label}</span>
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-gray-800 text-gray-400">
-                        {atk.category}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-gray-400 font-sans mt-0.5 line-clamp-1">
-                      {atk.desc}
-                    </p>
-                  </div>
-
-                  <span className="text-[10px] font-mono font-bold text-indigo-400 shrink-0">
-                    {atk.mitre}
-                  </span>
-                </div>
-
-                <div className="bg-[#060910] border border-[#1f293d] rounded px-2.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-gray-300">
-                  <span className="truncate max-w-[280px]">{atk.cmd}</span>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    <button
-                      onClick={(e) => handleCopyCmd(atk.cmd, e)}
-                      className="text-gray-500 hover:text-white transition p-1"
-                      title="Copy Command"
-                    >
-                      {copiedCmd === atk.cmd ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                    <button
-                      onClick={() => runCommand(atk.cmd)}
-                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition flex items-center gap-1"
-                    >
-                      <Play className="w-2.5 h-2.5 fill-current" /> Run
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                <Flame className="w-3.5 h-3.5 text-orange-400" />
+                Arsenal ({ATTACK_ARSENAL.length})
+              </button>
+              <button
+                onClick={() => setRightPanelTab('logs')}
+                className={`px-3 py-1 rounded text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                  rightPanelTab === 'logs'
+                    ? 'bg-cyan-600 text-white shadow-xs'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                Live Telemetry Logs ({events.length})
+              </button>
+            </div>
+            <span className="text-[10px] text-gray-500 font-mono hidden sm:inline">
+              {rightPanelTab === 'arsenal' ? '1-Click Execution' : 'Real-Time EDR'}
+            </span>
           </div>
+
+          {/* Tab 1: Arsenal Items List */}
+          {rightPanelTab === 'arsenal' && (
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {ATTACK_ARSENAL.map(atk => (
+                <div
+                  key={atk.id}
+                  className="bg-[#0b0f17] border border-[#1f293d] hover:border-gray-700 rounded-lg p-3 transition space-y-2 group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white font-mono">{atk.label}</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-gray-800 text-gray-400">
+                          {atk.category}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 font-sans mt-0.5 line-clamp-1">
+                        {atk.desc}
+                      </p>
+                    </div>
+
+                    <span className="text-[10px] font-mono font-bold text-indigo-400 shrink-0">
+                      {atk.mitre}
+                    </span>
+                  </div>
+
+                  <div className="bg-[#060910] border border-[#1f293d] rounded px-2.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-gray-300">
+                    <span className="truncate max-w-[280px]">{atk.cmd}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <button
+                        onClick={(e) => handleCopyCmd(atk.cmd, e)}
+                        className="text-gray-500 hover:text-white transition p-1"
+                        title="Copy Command"
+                      >
+                        {copiedCmd === atk.cmd ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => runCommand(atk.cmd)}
+                        className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
+                      >
+                        <Play className="w-2.5 h-2.5 fill-current" /> Run
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Tab 2: Live SOC Telemetry Logs Stream */}
+          {rightPanelTab === 'logs' && (
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {events.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-gray-500 font-mono text-xs space-y-2">
+                  <Radio className="w-8 h-8 text-gray-600 animate-pulse" />
+                  <span>Waiting for attack telemetry...</span>
+                  <span className="text-[10px] text-gray-600">Run an arsenal weapon or playbook on the left to generate live logs.</span>
+                </div>
+              ) : (
+                events.map(evt => {
+                  const isLiveAttack = evt.event_uuid?.startsWith('EVT-ATK') || evt.event_uuid?.startsWith('EVT-PBK') || evt.event_uuid?.startsWith('EVT-CLI') || evt.event_uuid?.startsWith('EVT-ING');
+                  return (
+                    <div
+                      key={evt.event_uuid}
+                      className={`p-2.5 rounded-lg border font-mono transition text-xs space-y-1.5 ${
+                        isLiveAttack
+                          ? 'bg-purple-950/40 border-purple-500/60 shadow-md ring-1 ring-purple-500/30'
+                          : 'bg-[#0b0f17] border-[#1f293d]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${
+                            evt.severity === 'critical' ? 'bg-red-500 animate-pulse' :
+                            evt.severity === 'high' ? 'bg-orange-500' :
+                            evt.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
+                          }`} />
+                          <span className="text-[10px] text-gray-400 font-mono">
+                            {new Date(evt.timestamp).toLocaleTimeString()}
+                          </span>
+                          {isLiveAttack && (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-purple-600 text-white animate-pulse">
+                              LIVE ATK
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-bold ${
+                            evt.severity === 'critical' ? 'bg-red-950/60 border border-red-500/40 text-red-400' :
+                            evt.severity === 'high' ? 'bg-orange-950/60 border border-orange-500/40 text-orange-400' :
+                            'bg-blue-950/60 border border-blue-500/40 text-blue-400'
+                          }`}>
+                            {evt.severity}
+                          </span>
+                          <span className="text-[10px] font-bold text-cyan-400">
+                            {evt.mitre_technique_id || 'TTP'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-white font-bold truncate">
+                        {evt.mitre_technique_name || evt.event_type}
+                      </div>
+
+                      <div className="text-[11px] text-gray-400 truncate font-mono bg-[#060910] p-1.5 rounded border border-[#1f293d]">
+                        {evt.command_line || (evt.cloud_action ? `${evt.cloud_service}::${evt.cloud_action}` : evt.event_type)}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1">
+                        <span className="truncate max-w-[200px]">
+                          {evt.source_host || evt.source_ip || 'kali-vm'} &rarr; {evt.dest_host || evt.dest_ip || 'target'}
+                        </span>
+                        {onSelectEvent && (
+                          <button
+                            onClick={() => onSelectEvent(evt.event_uuid)}
+                            className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40 font-bold transition"
+                          >
+                            Inspect &rarr;
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
 
       </div>

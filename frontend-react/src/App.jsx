@@ -149,8 +149,8 @@ export default function App() {
     init();
   }, []);
 
-  const loadScenarioData = async (scenarioId) => {
-    setLoading(true);
+  const loadScenarioData = async (scenarioId, silent = false) => {
+    if (!silent) setLoading(true);
     setCorrelating(true);
     try {
       const [e, c, g, m, a, s] = await Promise.all([
@@ -158,13 +158,30 @@ export default function App() {
         api.getAttackPath(scenarioId), api.getMitreData(scenarioId),
         api.getAiSummary(scenarioId), api.getAiQuerySuggestions(scenarioId)
       ]);
-      setEvents(e); setCorrelationData(c); setGraphData(g);
+      const sortedEvents = (e || []).slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setEvents(sortedEvents); setCorrelationData(c); setGraphData(g);
       setMitreData(m); setAiSummary(a); setQuerySuggestions(s);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); setTimeout(() => setCorrelating(false), 1500); }
+    finally {
+      if (!silent) setLoading(false);
+      setTimeout(() => setCorrelating(false), 800);
+    }
   };
 
-  useEffect(() => { if (activeScenarioId) loadScenarioData(activeScenarioId); }, [activeScenarioId]);
+  useEffect(() => {
+    if (activeScenarioId) {
+      loadScenarioData(activeScenarioId);
+    }
+  }, [activeScenarioId]);
+
+  // Real-time background sync interval for live telemetry
+  useEffect(() => {
+    if (!activeScenarioId) return;
+    const interval = setInterval(() => {
+      loadScenarioData(activeScenarioId, true);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [activeScenarioId]);
 
   const handleSelectEvent = (eventUuid) => {
     setSelectedEventUuid(eventUuid);
@@ -179,10 +196,28 @@ export default function App() {
 
   const handleTerminalCommand = async (actionData) => {
     if (actionData.type === 'event') {
-      await api.ingestEvent(actionData);
-      await loadScenarioData(activeScenarioId);
-      setContainmentAlert({ title: 'Adversary Telemetry Ingested', text: `${actionData.mitre_technique_id} — ${actionData.domain.toUpperCase()}` });
-      setTimeout(() => setContainmentAlert(null), 5000);
+      const newEventUuid = actionData.event_uuid || ('EVT-ATK-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+      const eventWithScenario = {
+        scenario_id: activeScenarioId,
+        event_uuid: newEventUuid,
+        timestamp: actionData.timestamp || new Date().toISOString(),
+        ...actionData
+      };
+
+      // Optimistic instant UI update: prepend to events immediately so logs update with 0ms latency
+      setEvents(prev => [eventWithScenario, ...prev.filter(e => e.event_uuid !== eventWithScenario.event_uuid)]);
+
+      // Ingest into datastore / API
+      await api.ingestEvent(eventWithScenario);
+
+      // Re-correlate silently in background (keeps UI & Kali terminal fully intact)
+      await loadScenarioData(activeScenarioId, true);
+
+      setContainmentAlert({
+        title: 'Adversary Telemetry Ingested (Live)',
+        text: `${eventWithScenario.mitre_technique_id || 'T1059'} — ${eventWithScenario.mitre_technique_name || eventWithScenario.domain?.toUpperCase() || 'ENDPOINT'}`
+      });
+      setTimeout(() => setContainmentAlert(null), 4000);
     } else if (actionData.type === 'containment') {
       setContainmentAlert({ title: 'EDR Quarantine Active', text: `Host isolation dispatched: ${actionData.host}` });
       setTimeout(() => setContainmentAlert(null), 5000);
@@ -804,7 +839,7 @@ export default function App() {
                           {isResetToZero ? '0' : events.length} security events correlated
                         </span>
                       </div>
-                      <div className="space-y-1 max-h-52 overflow-y-auto">
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                         {isResetToZero ? (
                           <div className="py-8 text-center text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
@@ -814,50 +849,63 @@ export default function App() {
                             <span className="text-[11px] text-slate-500">Click &ldquo;Restore Stats&rdquo; in the header or statistics card to reload live telemetry.</span>
                           </div>
                         ) : (
-                          events.slice(0, 10).map(evt => (
-                          <button
-                            key={evt.event_uuid}
-                            onClick={() => handleSelectEvent(evt.event_uuid)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition group ${
-                              isDark
-                                ? 'hover:bg-white/[0.04]'
-                                : 'hover:bg-slate-50 border-b border-slate-100/70'
-                            }`}
-                          >
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${
-                              evt.severity === 'critical' ? 'bg-red-500 animate-pulse' :
-                              evt.severity === 'high' ? 'bg-orange-500' :
-                              evt.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
-                            }`} />
-                            <span className={`text-[10px] font-mono w-32 shrink-0 truncate ${
-                              isDark ? 'text-slate-500' : 'text-slate-500'
-                            }`}>
-                              {new Date(evt.timestamp).toLocaleTimeString()}
-                            </span>
-                            <span className={`text-[9px] font-mono font-bold w-14 shrink-0 uppercase ${
-                              evt.severity === 'critical' ? 'text-red-500 dark:text-red-400' :
-                              evt.severity === 'high' ? 'text-orange-500 dark:text-orange-400' :
-                              evt.severity === 'medium' ? 'text-amber-500 dark:text-amber-400' : 'text-blue-500 dark:text-blue-400'
-                            }`}>
-                              {evt.severity}
-                            </span>
-                            <span className={`text-xs truncate flex-1 font-mono font-medium ${
-                              isDark ? 'text-slate-300' : 'text-slate-800'
-                            }`}>
-                              {evt.event_type}
-                            </span>
-                            <span className={`text-[10px] font-mono truncate max-w-[120px] ${
-                              isDark ? 'text-slate-500' : 'text-slate-500'
-                            }`}>
-                              {evt.source_host || evt.source_ip || ''}
-                            </span>
-                            <Eye className={`w-3.5 h-3.5 shrink-0 transition ${
-                              isDark
-                                ? 'text-slate-700 group-hover:text-purple-400'
-                                : 'text-slate-400 group-hover:text-purple-600'
-                            }`} />
-                          </button>
-                        )))}
+                          events.slice(0, 40).map(evt => {
+                            const isLiveAttack = evt.event_uuid?.startsWith('EVT-ATK') || evt.event_uuid?.startsWith('EVT-PBK') || evt.event_uuid?.startsWith('EVT-CLI') || evt.event_uuid?.startsWith('EVT-ING');
+                            return (
+                              <button
+                                key={evt.event_uuid}
+                                onClick={() => handleSelectEvent(evt.event_uuid)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition group ${
+                                  isLiveAttack
+                                    ? isDark
+                                      ? 'bg-purple-950/40 border border-purple-500/50 hover:bg-purple-900/50 shadow-sm'
+                                      : 'bg-purple-50 border border-purple-300 hover:bg-purple-100 shadow-sm'
+                                    : isDark
+                                      ? 'hover:bg-white/[0.04]'
+                                      : 'hover:bg-slate-50 border-b border-slate-100/70'
+                                }`}
+                              >
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                                  evt.severity === 'critical' ? 'bg-red-500 animate-pulse' :
+                                  evt.severity === 'high' ? 'bg-orange-500' :
+                                  evt.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
+                                }`} />
+                                <span className={`text-[10px] font-mono w-28 shrink-0 truncate ${
+                                  isDark ? 'text-slate-400' : 'text-slate-600'
+                                }`}>
+                                  {new Date(evt.timestamp).toLocaleTimeString()}
+                                </span>
+                                {isLiveAttack && (
+                                  <span className="px-1.5 py-0.2 rounded text-[8px] font-mono font-bold bg-purple-600 text-white animate-pulse shrink-0">
+                                    LIVE ATTACK
+                                  </span>
+                                )}
+                                <span className={`text-[9px] font-mono font-bold w-14 shrink-0 uppercase ${
+                                  evt.severity === 'critical' ? 'text-red-500 dark:text-red-400' :
+                                  evt.severity === 'high' ? 'text-orange-500 dark:text-orange-400' :
+                                  evt.severity === 'medium' ? 'text-amber-500 dark:text-amber-400' : 'text-blue-500 dark:text-blue-400'
+                                }`}>
+                                  {evt.severity}
+                                </span>
+                                <span className={`text-xs truncate flex-1 font-mono font-medium ${
+                                  isDark ? 'text-slate-200' : 'text-slate-800'
+                                }`}>
+                                  {evt.mitre_technique_id ? `[${evt.mitre_technique_id}] ` : ''}{evt.event_type}
+                                </span>
+                                <span className={`text-[10px] font-mono truncate max-w-[140px] ${
+                                  isDark ? 'text-cyan-400' : 'text-cyan-700 font-semibold'
+                                }`}>
+                                  {evt.source_host || evt.source_ip || ''} &rarr; {evt.dest_host || evt.dest_ip || 'target'}
+                                </span>
+                                <Eye className={`w-3.5 h-3.5 shrink-0 transition ${
+                                  isDark
+                                    ? 'text-slate-600 group-hover:text-purple-400'
+                                    : 'text-slate-400 group-hover:text-purple-600'
+                                }`} />
+                              </button>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
                   </div>
@@ -911,7 +959,13 @@ export default function App() {
                   <div className={`rounded-2xl p-5 ${
                     isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
                   }`}>
-                    <OffensiveTerminal onCommandExecuted={handleTerminalCommand} activeScenarioId={activeScenarioId} />
+                    <OffensiveTerminal
+                      onCommandExecuted={handleTerminalCommand}
+                      activeScenarioId={activeScenarioId}
+                      events={events}
+                      onSelectEvent={handleSelectEvent}
+                      theme={theme}
+                    />
                   </div>
                 )}
 
@@ -1035,7 +1089,7 @@ export default function App() {
       {showIngestModal && (
         <IngestionPanel
           scenarioId={activeScenarioId}
-          onEventIngested={() => loadScenarioData(activeScenarioId)}
+          onEventIngested={() => loadScenarioData(activeScenarioId, true)}
           onClose={() => setShowIngestModal(false)}
         />
       )}

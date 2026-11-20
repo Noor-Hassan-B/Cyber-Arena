@@ -110,7 +110,7 @@ if ($pdo) {
     }
 
     $whereSql = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
-    $query = "SELECT * FROM events {$whereSql} ORDER BY timestamp ASC LIMIT {$limit} OFFSET {$offset}";
+    $query = "SELECT * FROM events {$whereSql} ORDER BY timestamp DESC LIMIT {$limit} OFFSET {$offset}";
 
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);

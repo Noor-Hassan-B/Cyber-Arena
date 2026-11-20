@@ -65,7 +65,7 @@ class ThreatHunterService {
         const res = await fetch(url);
         const data = await res.json();
         if (data.status === 'success' && data.events) {
-          return data.events;
+          return data.events.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         }
       } catch (e) {
         console.warn('PHP API events failed, falling back to local dataset:', e);
@@ -78,7 +78,8 @@ class ThreatHunterService {
 
     // Append custom injected events matching this scenario
     const injected = this.customEvents.filter(e => e.scenario_id === scenarioId || scenarioId === 'ALL');
-    events = [...events, ...injected];
+    events = [...injected, ...events];
+    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     if (filters.domain && filters.domain !== 'ALL') {
       events = events.filter(e => e.domain === filters.domain);
@@ -101,35 +102,37 @@ class ThreatHunterService {
   }
 
   async ingestEvent(eventPayload) {
+    const scenarioId = eventPayload.scenario_id || 'SCN-APT29-GHOST';
+    const newUuid = eventPayload.event_uuid || ('EVT-ING-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+    const normalizedPayload = {
+      ...eventPayload,
+      event_uuid: newUuid,
+      scenario_id: scenarioId,
+      timestamp: eventPayload.timestamp || new Date().toISOString()
+    };
+
+    // Always maintain local custom events for instant responsive fallback
+    this.customEvents.unshift(normalizedPayload);
+
     if (this.useLiveBackend) {
       try {
         const res = await fetch(`${API_BASE}/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventPayload)
+          body: JSON.stringify(normalizedPayload)
         });
         const data = await res.json();
         return data;
       } catch (e) {
-        console.warn('Live API event ingest failed, storing locally:', e);
+        console.warn('Live API event ingest failed, stored locally:', e);
       }
     }
-
-    // Local store
-    const newUuid = 'EVT-ING-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newEvent = {
-      ...eventPayload,
-      event_uuid: newUuid,
-      timestamp: eventPayload.timestamp || new Date().toISOString().replace('T', ' ').substring(0, 19),
-      created_at: new Date().toISOString()
-    };
-    this.customEvents.unshift(newEvent);
 
     return {
       status: 'success_local',
       message: 'Event ingested into local correlation pipeline',
       event_uuid: newUuid,
-      event: newEvent
+      event: normalizedPayload
     };
   }
 

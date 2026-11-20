@@ -644,7 +644,7 @@ const server = http.createServer((req, res) => {
             mitre_technique_name: payload.mitre_technique_name || 'Command Line Execution',
             raw_payload: payload.raw_payload || {}
           };
-          DB.events.push(newEvent);
+          DB.events.unshift(newEvent);
 
           // Append to audit ledger
           DB.auditLedger.unshift({
@@ -680,6 +680,7 @@ const server = http.createServer((req, res) => {
         (e.command_line && e.command_line.toLowerCase().includes(q))
       );
     }
+    results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     sendJson(res, { status: 'success', count: results.length, events: results });
     return;
   }
