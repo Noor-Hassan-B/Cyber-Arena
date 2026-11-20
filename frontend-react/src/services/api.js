@@ -5,7 +5,7 @@
 import { ATTACK_SCENARIOS } from '../constants/attackScenarios';
 import { MITRE_TECHNIQUES_CATALOG, MITRE_TACTICS } from '../constants/mitreMatrix';
 
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from './apiConfig';
 
 class ThreatHunterService {
   constructor() {

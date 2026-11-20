@@ -51,7 +51,10 @@ if ($uri === '/' || $uri === '') {
             'GET /api/attack_path' => 'Attack graph topology nodes, edges, blast radius',
             'GET /api/mitre' => 'MITRE ATT&CK matrix heatmap and technique distribution',
             'GET/POST /api/ai_assist' => 'AI threat query suggestions, hypotheses, evidence links & limitations',
-            'GET /api/report' => 'Forensic investigation timeline & executive incident report'
+            'GET /api/report' => 'Forensic investigation timeline & executive incident report',
+            'GET/POST /api/detections' => 'Detection Engineering Studio (Sigma / SPL / KQL) rules',
+            'GET/POST /api/gating' => 'Human-in-the-Loop (HITL) action containment gating queue',
+            'GET /api/audit' => 'Append-only immutable audit ledger'
         ]
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;

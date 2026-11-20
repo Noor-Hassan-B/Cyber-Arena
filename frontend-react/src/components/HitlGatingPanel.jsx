@@ -5,7 +5,7 @@ import {
   ChevronRight, Server, UserX, Ban, Activity, Eye
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../services/apiConfig';
 
 // ─── Action type configs ──────────────────────────────────────────────────────
 const ACTION_CONFIGS = {
@@ -87,7 +87,7 @@ function DecisionDialog({ action, onDecide, onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action_id: action.id,
+          action_id: action.action_id || action.id,
           decision,
           analyst_name: analyst,
           reason,
@@ -113,7 +113,7 @@ function DecisionDialog({ action, onDecide, onClose }) {
           <div>
             <h3 className="text-sm font-bold text-white">HITL Decision Required</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              {ACTION_CONFIGS[action.action_type]?.label || action.action_type}: <span className="font-mono text-white">{action.target}</span>
+              {ACTION_CONFIGS[(action.action_type || '').toUpperCase()]?.label || action.action_type}: <span className="font-mono text-white">{action.target}</span>
             </p>
           </div>
         </div>
@@ -185,7 +185,8 @@ function ActionCard({ action, onDecide }) {
   const [expanded, setExpanded] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
 
-  const cfg = ACTION_CONFIGS[action.action_type] || { icon: Zap, label: action.action_type, color: 'text-slate-400', bg: 'bg-slate-900 border-slate-700' };
+  const actionKey = (action.action_type || '').toUpperCase();
+  const cfg = ACTION_CONFIGS[actionKey] || { icon: Zap, label: action.action_type, color: 'text-slate-400', bg: 'bg-slate-900 border-slate-700' };
   const riskCfg = RISK_CONFIGS[action.risk_level] || RISK_CONFIGS.medium;
   const statusCfg = STATUS_CONFIGS[action.status] || STATUS_CONFIGS.pending_approval;
   const ActionIcon = cfg.icon;
@@ -294,7 +295,8 @@ export default function HitlGatingPanel() {
     try {
       const res = await fetch(`${API_BASE}/gating`);
       const data = await res.json();
-      setQueue(data.queue?.length ? data.queue : SEED_QUEUE);
+      const rawQueue = data.queue || data.gating || [];
+      setQueue(Array.isArray(rawQueue) && rawQueue.length > 0 ? rawQueue : SEED_QUEUE);
     } catch {
       setQueue(SEED_QUEUE);
     } finally {

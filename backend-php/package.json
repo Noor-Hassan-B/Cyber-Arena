@@ -1,0 +1,13 @@
+{
+  "name": "threat-hunter-backend",
+  "version": "1.0.0",
+  "description": "Sh4d0w_Br0k3rs Unified Threat Hunting REST API",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["threat-hunting", "mitre-attack", "siem", "soc"],
+  "author": "Noor Hassan",
+  "license": "MIT"
+}

@@ -500,9 +500,10 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const parsedUrl = url.parse(req.url, true);
+  const host = req.headers.host || 'localhost';
+  const parsedUrl = new URL(req.url, `http://${host}`);
   const pathname = parsedUrl.pathname.replace(/\/$/, '');
-  const query = parsedUrl.query;
+  const query = Object.fromEntries(parsedUrl.searchParams.entries());
 
   // Root / Status
   if (pathname === '' || pathname === '/' || pathname === '/api') {
@@ -558,14 +559,14 @@ const server = http.createServer((req, res) => {
             signature: 'sha256:' + Math.random().toString(36).substring(2, 10)
           });
 
-          sendJson(res, { status: 'success', message: 'Detection rule deployed', rule }, 201);
+          sendJson(res, { status: 'success', message: 'Detection rule deployed', rule, detection: rule }, 201);
         } catch (e) {
           sendJson(res, { error: 'Invalid JSON' }, 400);
         }
       });
       return;
     }
-    sendJson(res, { status: 'success', count: DB.detectionRules.length, rules: DB.detectionRules });
+    sendJson(res, { status: 'success', count: DB.detectionRules.length, rules: DB.detectionRules, detections: DB.detectionRules });
     return;
   }
 
@@ -577,7 +578,7 @@ const server = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const { action_id, decision, analyst_name, reason } = JSON.parse(body);
-          const item = DB.hitlGatingQueue.find(g => g.action_id === action_id);
+          const item = DB.hitlGatingQueue.find(g => g.action_id === action_id || g.id === action_id);
           if (item) {
             item.status = decision === 'approve' ? 'approved_and_executed' : 'rejected_by_analyst';
             item.decision_by = analyst_name || 'L3 Incident Commander';
@@ -596,7 +597,7 @@ const server = http.createServer((req, res) => {
               signature: 'sha256:' + Math.random().toString(36).substring(2, 10)
             });
 
-            sendJson(res, { status: 'success', message: `Action ${decision}d successfully`, item });
+            sendJson(res, { status: 'success', message: `Action ${decision}d successfully`, item, action: item });
           } else {
             sendJson(res, { error: 'Action not found in queue' }, 404);
           }
@@ -612,7 +613,7 @@ const server = http.createServer((req, res) => {
 
   // Append-Only Audit Ledger
   if (pathname === '/api/audit') {
-    sendJson(res, { status: 'success', count: DB.auditLedger.length, ledger: DB.auditLedger });
+    sendJson(res, { status: 'success', count: DB.auditLedger.length, ledger: DB.auditLedger, audit: DB.auditLedger });
     return;
   }
 
@@ -849,6 +850,27 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/report') {
     const scenarioId = query.scenario_id || 'SCN-APT29-GHOST';
     const events = DB.events.filter(e => e.scenario_id === scenarioId);
+    const formattedTimeline = events.map(e => ({
+      timestamp: e.timestamp,
+      event_uuid: e.event_uuid,
+      domain: (e.domain || 'endpoint').toUpperCase(),
+      event_type: e.event_type,
+      severity: e.severity,
+      source: e.source_host || e.source_ip || 'Internal Host',
+      target: e.dest_host || e.dest_ip || e.cloud_service || 'Asset',
+      user: e.user_id || 'System',
+      action: e.command_line || e.cloud_action || e.event_type,
+      mitre_technique: e.mitre_technique_id ? `${e.mitre_technique_id} - ${e.mitre_technique_name}` : 'N/A'
+    }));
+
+    const formattedEvidence = events.map(e => ({
+      item_id: e.event_uuid,
+      timestamp: e.timestamp,
+      custody_status: 'Verified Hash Match',
+      evidence_type: `${(e.domain || 'endpoint').toUpperCase()} // ${e.event_type}`,
+      actor_entity: `${e.user_id || 'system'}@${e.source_host || 'unknown'}`
+    }));
+
     sendJson(res, {
       status: 'success',
       report: {
@@ -860,14 +882,36 @@ const server = http.createServer((req, res) => {
         generated_at: new Date().toUTCString(),
         executive_summary: 'Multi-stage intrusion reconstructed across Endpoint, Active Directory, Network, and AWS Cloud infrastructure.',
         confidence_score: 0.94,
-        timeline: events,
-        evidence_chain: events.map(e => ({ item_id: e.event_uuid, timestamp: e.timestamp, status: 'Verified' }))
+        timeline: formattedTimeline,
+        evidence_chain: formattedEvidence,
+        containment_playbook: {
+          'Phase 1: Immediate Triage & Host Isolation': [
+            'Isolate compromised endpoint WKSTN-FIN-04 from corporate LAN and VPN.',
+            'Terminate rogue process trees (rundll32.exe comsvcs.dll, wmic.exe).'
+          ],
+          'Phase 2: Credential & Identity Revocation': [
+            'Reset Active Directory krbtgt account password twice to invalidate Golden Tickets.',
+            'Force immediate rotation of svc_sqladmin credentials and revoke AWS STS assumed role sessions.'
+          ],
+          'Phase 3: Network & Perimeter Null-Routing': [
+            'Block adversary C2 IP 185.220.101.5 and drop destination 91.240.118.12 at border firewalls.',
+            'Audit egress bandwidth logs to detect secondary exfiltration channels.'
+          ]
+        }
       }
     });
     return;
   }
 
   sendJson(res, { error: 'Endpoint not found', path: pathname }, 404);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[!] Caught unhandled exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[!] Caught unhandled promise rejection:', reason);
 });
 
 server.listen(PORT, '0.0.0.0', () => {

@@ -1188,9 +1188,9 @@ export default function App() {
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Sh4d0w_Br0k3rs Platform — Operational</span>
             </div>
             <span className={isDark ? 'text-purple-900' : 'text-slate-300'}>|</span>
-            <span>REST API: http://localhost:8000</span>
+            <span>API: {backendStatus.url || '/api'}</span>
             <span className={isDark ? 'text-purple-900' : 'text-slate-300'}>|</span>
-            <span>Web UI: http://localhost:3000</span>
+            <span>Origin: {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}</span>
             <span className="ml-auto font-medium">Evidence-Driven SOC Platform v3.0 • Noor Hassan Arch</span>
           </footer>
         </div>

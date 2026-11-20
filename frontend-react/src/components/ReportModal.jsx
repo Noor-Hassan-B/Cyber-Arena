@@ -181,7 +181,7 @@ export default function ReportModal({ scenarioId, onClose }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono">
-                  {report?.timeline.map((item) => (
+                  {(report?.timeline || []).map((item) => (
                     <tr key={item.event_uuid} className="hover:bg-slate-900/60 transition">
                       <td className="p-2.5 text-slate-300 whitespace-nowrap">{item.timestamp}</td>
                       <td className="p-2.5 text-blue-400 font-bold">{item.event_uuid}</td>
@@ -204,8 +204,8 @@ export default function ReportModal({ scenarioId, onClose }) {
               <span className="text-blue-400">03.</span> Telemetry Evidence Chain of Custody
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {report?.evidence_chain.slice(0, 6).map((item) => (
-                <div key={item.item_id} className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-[11px] font-mono">
+              {(report?.evidence_chain || []).slice(0, 6).map((item) => (
+                <div key={item.item_id || Math.random()} className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-[11px] font-mono">
                   <div className="flex items-center justify-between">
                     <span className="text-blue-400 font-bold">{item.item_id}</span>
                     <span className="text-emerald-400 text-[10px] flex items-center gap-1">
@@ -228,7 +228,7 @@ export default function ReportModal({ scenarioId, onClose }) {
                 <div key={phase} className="p-3 bg-slate-950 border border-slate-800/90 rounded-xl space-y-2">
                   <span className="text-xs font-bold text-indigo-300 font-mono">{phase}</span>
                   <ul className="space-y-1">
-                    {tasks.map((task, idx) => (
+                    {(Array.isArray(tasks) ? tasks : []).map((task, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-xs text-slate-300">
                         <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
                         <span>{task}</span>

@@ -206,7 +206,7 @@ export default function ThreatHuntingWorkspace({ events, scenario, onSelectEvent
             </p>
             <div className="flex items-center gap-2 pt-2 flex-wrap text-xs font-mono">
               <span className="text-gray-500">Target Assets:</span>
-              {currentHypo.targetAssets.map(asset => (
+              {(currentHypo.targetAssets || []).map(asset => (
                 <span key={asset} className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">
                   {asset}
                 </span>
@@ -220,7 +220,7 @@ export default function ThreatHuntingWorkspace({ events, scenario, onSelectEvent
               Corroborated Telemetry Evidence Samples
             </span>
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {events.slice(0, 4).map(evt => (
+              {(events || []).slice(0, 4).map(evt => (
                 <div
                   key={evt.event_uuid}
                   onClick={() => onSelectEvent(evt.event_uuid)}

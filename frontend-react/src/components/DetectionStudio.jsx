@@ -5,7 +5,7 @@ import {
   Copy, Trash2, Eye, EyeOff, Zap, Tag, Clock, Filter
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../services/apiConfig';
 
 // ─── Sample rule templates ───────────────────────────────────────────────────
 const RULE_TEMPLATES = {
@@ -208,7 +208,7 @@ function CreateRuleForm({ onCreate, onCancel }) {
       });
       const data = await res.json();
       if (data.status === 'success') {
-        onCreate(data.detection);
+        onCreate(data.detection || data.rule || form);
       } else {
         setError(data.error || 'Failed to deploy rule.');
       }
@@ -342,7 +342,8 @@ export default function DetectionStudio() {
     try {
       const res = await fetch(`${API_BASE}/detections`);
       const data = await res.json();
-      setRules(data.detections || []);
+      const rulesList = data.detections || data.rules || [];
+      setRules(Array.isArray(rulesList) && rulesList.length > 0 ? rulesList : []);
     } catch {
       // Seed with example rules if backend unreachable
       setRules([

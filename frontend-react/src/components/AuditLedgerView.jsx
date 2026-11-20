@@ -6,7 +6,7 @@ import {
   FileCode2, User
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../services/apiConfig';
 
 // ─── Action type display configs ──────────────────────────────────────────────
 const ACTION_STYLES = {
@@ -150,7 +150,8 @@ export default function AuditLedgerView() {
     try {
       const res = await fetch(`${API_BASE}/audit`);
       const data = await res.json();
-      setEntries(data.audit?.length ? data.audit : SEED_LEDGER);
+      const rawList = data.audit || data.ledger || [];
+      setEntries(Array.isArray(rawList) && rawList.length > 0 ? rawList : SEED_LEDGER);
     } catch {
       setEntries(SEED_LEDGER);
     } finally {

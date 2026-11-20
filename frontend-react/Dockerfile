@@ -10,7 +10,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install dependencies with caching layer
-COPY package.json ./
+COPY package*.json ./
 RUN npm install
 
 # Copy application source code

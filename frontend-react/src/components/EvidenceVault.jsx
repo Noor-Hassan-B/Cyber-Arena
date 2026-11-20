@@ -396,7 +396,10 @@ export default function EvidenceVault({ events, onSelectEvent, selectedEventUuid
                           <span className="text-indigo-300 font-bold">{rel.rel}</span>
                         </div>
                         <span className="text-gray-400 truncate max-w-28 text-[11px]">
-                          {rel.source === activeEntity.id ? rel.target.split(':')[1] : rel.source.split(':')[1]}
+                          {(() => {
+                            const val = rel.source === activeEntity.id ? rel.target : rel.source;
+                            return (val && String(val).includes(':')) ? String(val).split(':')[1] : (val || '—');
+                          })()}
                         </span>
                       </div>
                     ))}
@@ -407,7 +410,7 @@ export default function EvidenceVault({ events, onSelectEvent, selectedEventUuid
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-wider">
-                    Associated Evidence Telemetry ({activeEntity.events.length})
+                    Associated Evidence Telemetry ({(activeEntity.events || []).length})
                   </span>
                   <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Hash Admissibility Intact
@@ -415,7 +418,7 @@ export default function EvidenceVault({ events, onSelectEvent, selectedEventUuid
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                  {activeEntity.events.map((evt, idx) => {
+                  {(activeEntity.events || []).map((evt, idx) => {
                     const isSelected = selectedEventUuid === evt.event_uuid;
                     const simulatedHash = `sha256:7f9a${(idx * 7919).toString(16).padStart(8, '0')}e2bc910a44`;
                     const isVerified = verifiedSignatures[evt.event_uuid];
