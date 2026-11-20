@@ -465,7 +465,9 @@ class ThreatHunterService {
       try {
         const res = await fetch(`${API_BASE}/ai_assist?action=query_suggestions&scenario_id=${scenarioId}`);
         const data = await res.json();
-        if (data.status === 'success') return data.suggestions;
+        if (data.status === 'success' && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+          return data.suggestions;
+        }
       } catch (e) {
         console.warn('Live API query suggestions failed, using local templates:', e);
       }

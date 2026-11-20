@@ -167,7 +167,7 @@ export default function App() {
       ]);
       const sortedEvents = (e || []).slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setEvents(sortedEvents); setCorrelationData(c); setGraphData(g);
-      setMitreData(m); setAiSummary(a); setQuerySuggestions(s);
+      setMitreData(m); setAiSummary(a); setQuerySuggestions(Array.isArray(s) ? s : []);
     } catch (err) { console.error(err); }
     finally {
       if (!silent) setLoading(false);
@@ -1116,7 +1116,7 @@ export default function App() {
                     isDark ? 'bg-white/[0.02] border border-white/[0.05]' : 'bg-white border border-slate-200/90 shadow-xs'
                   }`}>
                     <AIAssistantPanel
-                      aiSummary={aiSummary} querySuggestions={querySuggestions}
+                      aiSummary={aiSummary} querySuggestions={Array.isArray(querySuggestions) ? querySuggestions : []}
                       onAskCustomQuery={(q) => api.askAiCustomQuery(q, activeScenarioId)}
                       onSelectEvent={handleSelectEvent}
                       onOpenLimitations={() => setShowLimitationsModal(true)}

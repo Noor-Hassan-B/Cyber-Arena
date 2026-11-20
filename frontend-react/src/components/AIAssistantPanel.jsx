@@ -17,7 +17,7 @@ import {
 
 export default function AIAssistantPanel({ 
   aiSummary, 
-  querySuggestions, 
+  querySuggestions = [], 
   onAskCustomQuery, 
   onSelectEvent,
   onOpenLimitations
@@ -122,7 +122,7 @@ export default function AIAssistantPanel({
           </p>
 
           {/* Recommended Containment Actions */}
-          {aiSummary.recommended_actions && (
+          {Array.isArray(aiSummary?.recommended_actions) && aiSummary.recommended_actions.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1.5">
               <span className="text-xs font-semibold text-slate-300">
                 Recommended Immediate Containment Leads:
@@ -200,7 +200,7 @@ export default function AIAssistantPanel({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {querySuggestions.slice(0, 4).map((sug, idx) => (
+          {(querySuggestions || []).slice(0, 4).map((sug, idx) => (
             <div
               key={sug.id}
               className="bg-slate-950/70 border border-slate-800/90 rounded-xl p-3 flex flex-col justify-between hover:border-slate-700 transition"

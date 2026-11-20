@@ -780,6 +780,56 @@ const server = http.createServer((req, res) => {
 
   // AI Assist
   if (pathname === '/api/ai_assist') {
+    const action = query.action;
+    if (action === 'query_suggestions') {
+      sendJson(res, {
+        status: 'success',
+        suggestions: [
+          {
+            id: 'sug-1',
+            title: 'Anomalous Parent-Child Process Spawns',
+            description: 'Hunt for office productivity software spawning shells or scripting engines (winword.exe -> powershell.exe).',
+            target_tactic: 'Execution',
+            mitre_technique: 'T1059.001',
+            spl_query: 'index=endpoint process_name IN ("powershell.exe", "cmd.exe") parent_process="winword.exe"',
+            sql_query: "SELECT * FROM events WHERE parent_process = 'winword.exe' AND process_name IN ('powershell.exe', 'cmd.exe');",
+            rationale: 'Detects macro exploitation and download cradles before persistence is established.'
+          },
+          {
+            id: 'sug-2',
+            title: 'High-Frequency Kerberos Ticket Requests (Kerberoasting)',
+            description: 'Identify Event ID 4769 with weak RC4 encryption (0x17) requested for multiple service principal names.',
+            target_tactic: 'Credential Access',
+            mitre_technique: 'T1558.003',
+            spl_query: 'index=auth event_id=4769 ticket_encryption_type=0x17 service_name!="krbtgt"',
+            sql_query: "SELECT user_id, COUNT(*) as req_count FROM events WHERE event_type = 'kerberos_tgs_request' GROUP BY user_id HAVING req_count > 5;",
+            rationale: 'Reveals attackers requesting tickets for offline hash cracking with Hashcat or John.'
+          },
+          {
+            id: 'sug-3',
+            title: 'Cloud IAM STS AssumeRole from Non-Corporate IP',
+            description: 'Correlate AWS STS AssumeRole API calls originating from external foreign IP ranges.',
+            target_tactic: 'Privilege Escalation',
+            mitre_technique: 'T1078.004',
+            spl_query: 'index=cloud eventName="AssumeRole" NOT (sourceIPAddress IN ("10.0.0.0/8", "192.168.0.0/16"))',
+            sql_query: "SELECT * FROM events WHERE domain = 'cloud' AND event_type = 'sts_assumerole' AND source_ip NOT LIKE '10.%';",
+            rationale: 'Identifies usage of compromised AWS programmatic credentials by foreign C2 IPs.'
+          },
+          {
+            id: 'sug-4',
+            title: 'Outbound High-Volume Encrypted Data Transfer (Exfiltration)',
+            description: 'Detect abnormal spikes in egress traffic over HTTPS / TLS to unclassified IP addresses.',
+            target_tactic: 'Exfiltration',
+            mitre_technique: 'T1567.002',
+            spl_query: 'index=network bytes_out > 50000000 dest_port=443 NOT (dest_host IN ("*.microsoft.com", "*.aws.amazon.com"))',
+            sql_query: "SELECT source_host, dest_ip, SUM(bytes_out) as total_bytes FROM events WHERE domain = 'network' GROUP BY source_host, dest_ip HAVING total_bytes > 50000000;",
+            rationale: 'Flags staging and exfiltration of corporate databases and files to drop servers.'
+          }
+        ]
+      });
+      return;
+    }
+
     sendJson(res, {
       status: 'success',
       summary_title: 'APT29 GhostToken Hybrid Enterprise Intrusion & S3 Theft',
